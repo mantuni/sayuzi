@@ -629,11 +629,15 @@ function applyLands(res, announce){
     .sort((a, b) => t0(a.joined) - t0(b.joined) || (a.land < b.land ? -1 : 1));
   const seen = new Set();
   for (const l of lands){
-    const code = codeForLand(l.land); seen.add(l.land); landsOn.add(l.land);
+    const code = codeForLand(l.land);   // 번호는 가입 순서대로 미리 정해 둠 (글이 없어도)
     const list = (Array.isArray(l.thoughts) ? l.thoughts : []).map(t => toAppThought(l.land, t)).filter(Boolean);
+    if (!list.length) continue;          // 글이 하나라도 있어야 땅에 섬 — 가입만 한 계정은 안 보임
+    seen.add(l.land); landsOn.add(l.land);
+    if (parcels.get(code)?.sinking) continue;
     syncParcel(code, { list, kws: appKwStats(list) }, announce);
   }
-  for (const key of [...landsOn]) if (!seen.has(key)){ landsOn.delete(key); const p = parcels.get(landCodes.get(key)); if (p) dropParcel(p); }
+  /* 글을 모두 묻거나 지운 필지는 땅속으로 가라앉음 */
+  for (const key of [...landsOn]) if (!seen.has(key)){ landsOn.delete(key); const p = parcels.get(landCodes.get(key)); if (p) sinkParcel(p, announce); }
   applyMarks(res, announce);
 }
 
@@ -910,6 +914,12 @@ function riseParcel(p){
   p.group.position.y = -5;
   anim(2800, k => { p.group.position.y = -5 * (1 - ease(k)); }, () => { p.group.position.y = 0; });
   ripple(p.pos.x, p.pos.z);
+}
+function sinkParcel(p, animate){
+  if (!animate || !p.group){ dropParcel(p); return; }
+  if (card.items && card.items.some(it => it.p === p)) closeCard();
+  p.sinking = true;
+  anim(2200, k => { p.group.position.y = -5 * ease(k); }, () => { dropParcel(p); landStamp = null; });   // 그새 글이 다시 생겼으면 다음 확인 때 다시 솟아남
 }
 function ripple(x, z){
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([-1,0,-1, 1,0,-1, 1,0,1, -1,0,1], 3));
