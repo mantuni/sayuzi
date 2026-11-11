@@ -1,0 +1,2203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사유지 거닐기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic+Coding&family=Noto+Sans+KR:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* 사유지 팔레트 (피그마) · 검정은 쓰지 않고 글씨 회색이 가장 진한 색 */
+  --text:#6C6C6C;      /* 글씨 회색 */
+  --gray:#8E8E8E;      /* 회색 */
+  --box:#959595;       /* 상자 회색 · 생각 조각 */
+  --soft:#DADADA;      /* 연회색 */
+  --mid:#E5E5E5;       /* 중간 회색 · 탭 바, 카드 */
+  --pale:#F3F3F3;      /* 옅은 바탕 */
+  --paper:#FFFFFF;     /* 바탕 */
+  --f-ui:"Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --f-logo:"Plus Jakarta Sans", "Noto Sans KR", sans-serif;
+  --f-ai:"Nanum Gothic Coding", ui-monospace, monospace;
+  --tab:64px;
+  /* layout: 화면 전체가 3D 땅, 위 모서리에 키워드와 로고, 아래는 앱과 같은 탭 바, 그 위에 생각 카드 */
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--paper);color:var(--text);overflow:hidden;font-family:var(--f-ui);-webkit-font-smoothing:antialiased}
+#world{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none;outline:none;cursor:grab}
+#world.dragging{cursor:grabbing}
+.grain,#intro::after{pointer-events:none;mix-blend-mode:multiply;opacity:.16;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .45 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.grain{position:fixed;inset:0;z-index:1}
+.hud{position:fixed;z-index:2;pointer-events:none}
+.hud button{pointer-events:auto}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:1px solid var(--text);outline-offset:4px}
+
+/* 띠 버튼 (피그마 '흔적 남기기' 모양) */
+.bar{position:relative;isolation:isolate;background:none;border:0;padding:5px 9px;cursor:pointer;
+  font:500 15px/1.2 var(--f-ui);color:var(--paper);white-space:nowrap}
+/* 띠 높이 = 글자 높이. --bt, --bh는 글자 윤곽을 재서 스크립트가 채움 */
+.bar::before{content:"";position:absolute;left:0;right:0;top:var(--bt, 7px);height:var(--bh, 13px);background:var(--text);z-index:-1;transition:background-color .2s}
+.bar.sub::before{background:var(--box)}
+.bar.sub:hover::before{background:var(--text)}
+.bar:not(.sub):hover::before{background:var(--gray)}
+.bar .bl{display:inline-block;width:0;height:0;vertical-align:baseline}
+
+/* 키워드 */
+#kw{top:30px;left:34px}
+.kw-label{margin:0 0 14px;font-size:13px;font-weight:500;color:var(--gray)}
+.chips{display:flex;gap:30px;flex-wrap:wrap;padding-left:14px}
+.chip{position:relative;background:none;border:0;padding:4px 0;cursor:pointer;font-size:14px;font-weight:500;color:var(--text);
+  text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px;text-decoration-color:var(--text)}
+.chip[aria-pressed="true"]{font-weight:700}
+.chip[aria-pressed="true"]::before{content:"";position:absolute;left:50%;top:-9px;width:7px;height:7px;background:var(--box);transform:translateX(-50%)}
+
+/* 로고 */
+#brand{top:26px;right:34px;display:grid;justify-items:end;gap:10px}
+.logo-s{width:132px;height:auto;display:block}
+.stats{font-size:12px;color:var(--gray);text-align:right;line-height:1.7;font-variant-numeric:tabular-nums}
+.stats b{font-weight:500;color:var(--text)}
+.source{font-size:11px;color:#AFAFAF;text-align:right}
+
+/* 가운데 위 */
+#top{top:30px;left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:10px;text-align:center}
+.pull{margin:0;font-size:14px;color:var(--soft)}
+.ai{margin:0;font-family:var(--f-ai);font-size:13px;color:var(--text)}
+.ai::before{content:"> ";color:var(--gray)}
+.toast{padding:8px 12px;background:var(--paper);border:1px solid var(--soft);transition:opacity .5s, transform .5s}
+.toast.out{opacity:0;transform:translateY(-6px)}
+
+/* 안내 */
+#hint{left:34px;bottom:calc(var(--tab) + 26px);display:grid;gap:18px}
+.keys{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:12px;color:var(--gray)}
+.keys b{display:inline-block;min-width:124px;font-weight:500;color:var(--text)}
+.actions{display:flex;gap:14px}
+
+/* QR */
+#qr{right:34px;bottom:calc(var(--tab) + 26px);display:flex;align-items:flex-end;gap:16px}
+.qr-text{text-align:right;font-size:12px;line-height:1.75;color:var(--gray)}
+.qr-text strong{display:block;margin-bottom:4px;font-weight:500;font-size:15px;color:var(--text)}
+.qr-box{width:108px;height:108px;background:var(--paper);padding:7px;border:1px solid var(--soft);transition:border-color .3s}
+.qr-box.ping{animation:ping 1.2s ease 2}
+.qr-box img,.qr-box canvas{display:block;width:100%!important;height:100%!important}
+.qr-empty{display:grid;place-items:center;height:100%;border:1px dashed var(--soft);font-size:11px;color:var(--gray);text-align:center;line-height:1.5}
+@keyframes ping{50%{border-color:var(--text);box-shadow:0 0 0 6px var(--pale)}}
+
+/* 생각 카드 (피그마 '생각 카드') */
+#card{left:50%;bottom:calc(var(--tab) + 22px);transform:translateX(-50%);width:min(540px, calc(100vw - 32px));pointer-events:auto}
+.deck{position:absolute;height:40px;background:var(--mid);border:1px solid var(--box)}
+.deck.d1{left:10px;right:10px;top:-8px}
+.deck.d2{left:20px;right:20px;top:-16px}
+.card-body{position:relative;background:var(--mid);border:1px solid var(--gray);padding:18px 18px 14px}
+.thought{margin:0 34px 10px 0;min-height:1.75em;font-size:17px;font-weight:500;line-height:1.75;color:var(--text);text-wrap:pretty}
+.caret{display:inline-block;width:2px;height:1.05em;margin-left:3px;vertical-align:-3px;background:var(--text);animation:blink 1.05s steps(1) infinite}
+.meta{margin:0 0 12px;font-size:13px;font-weight:500;color:var(--gray)}
+.traces{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 12px;padding-top:10px;border-top:1px solid var(--soft)}
+.tally{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--text);min-height:20px;align-items:center}
+.tally small{margin-left:3px;font-size:11px;color:var(--gray);font-variant-numeric:tabular-nums}
+.tally .none{color:var(--gray)}
+.tally .sqm i{display:inline-block;width:9px;height:9px;background:var(--text);vertical-align:-1px}
+.lines{margin:-4px 0 12px;display:grid;gap:2px}
+.lines p{margin:0;font-size:13px;font-weight:500;line-height:1.6;color:var(--gray)}
+.lines p::before{content:'— '}
+.card-foot{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:500;color:var(--gray);font-variant-numeric:tabular-nums}
+.card-nav{display:flex;gap:2px}
+.link{background:none;border:0;padding:4px 6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--gray)}
+.link:hover{color:var(--text)}
+.x{position:absolute;top:10px;right:10px;width:28px;height:28px;display:grid;place-items:center;padding:0;background:none;border:0;cursor:pointer;color:var(--gray)}
+.x svg{display:block}
+.x:hover{color:var(--text)}
+.palette{position:fixed;z-index:3;pointer-events:auto;width:min(420px, calc(100vw - 32px));background:var(--paper);border:1px solid var(--soft);padding:12px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.emo kbd{font:inherit;font-size:10px;color:var(--soft)}
+/* 걷는 중 흔적 남기기 */
+#emoteDock{left:50%;bottom:calc(var(--tab) + 26px);transform:translateX(-50%);display:grid;justify-items:center;gap:8px}
+#emoteDock p{margin:0;font-size:12px;color:var(--gray)}
+.dock-row{display:flex;gap:16px;align-items:center}
+/* 방명록: 화면 위쪽 2/3 카메라 */
+/* 카메라 비율 그대로, 높이는 화면의 2/3, 위쪽 가운데에 살짝 띄워서 (크기는 스크립트가 맞춤) */
+#guest{position:fixed;left:50%;top:max(24px, 4vh);transform:translateX(-50%);width:min(100vw, calc(66.667vh * 16 / 9));height:66.667vh;z-index:4;background:var(--mid);border:1px solid var(--box);overflow:hidden}
+#gVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);filter:grayscale(1) contrast(.92) brightness(1.06)}
+#gCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.g-top{position:absolute;top:16px;left:24px;right:24px;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+/* 방명록 안내 두 줄(왼쪽 위·왼쪽 아래)은 같은 모양 */
+.g-note{margin:0;padding:2px 7px;background:var(--paper);border:1px solid var(--soft);font-family:var(--f-ui);font-size:10px;line-height:1.4;color:var(--text)}
+/* 닫기 버튼은 왼쪽 안내문 상자와 같은 높이 */
+.g-top .x{position:static;width:20px;height:20px;pointer-events:auto;background:var(--paper);border:1px solid var(--soft);color:var(--text)}
+.g-top .x svg{width:8px;height:8px}
+.g-guide{position:absolute;left:24px;bottom:18px;pointer-events:none}
+.g-guide:empty{display:none}
+.g-actions{position:absolute;right:24px;bottom:22px;display:flex;gap:16px}
+.palette p{grid-column:1/-1;margin:0 0 6px;font-size:12px;color:var(--gray)}
+.emo{display:grid;gap:4px;justify-items:center;padding:10px 4px;background:none;border:1px solid transparent;cursor:pointer}
+.emo:hover{background:var(--pale);border-color:var(--soft)}
+.emo span{font-size:14px;color:var(--text);white-space:nowrap}
+.emo small{font-size:11px;color:var(--gray)}
+
+/* 탭 바 (피그마 '탭 바') */
+#tabbar{left:0;right:0;bottom:0;height:var(--tab);background:var(--mid);border-top:1px solid var(--box);pointer-events:auto}
+.tabs{display:flex;justify-content:center;height:100%;max-width:520px;margin:0 auto}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:10px;background:none;border:0;cursor:pointer;font-size:12px;color:var(--gray)}
+.tab i{width:7px;height:7px;background:var(--box);opacity:0}
+.tab[aria-current="page"]{font-weight:500;color:var(--text);cursor:default}
+.tab[aria-current="page"] i{opacity:1}
+.tab:not([aria-current]):hover{color:var(--text)}
+
+/* 인트로 (피그마 '인트로_2_로고') */
+#intro{position:fixed;inset:0;z-index:5;background:var(--mid);cursor:pointer;transition:opacity 1.2s ease}
+#intro::after{content:"";position:absolute;inset:0}
+#intro.gone{opacity:0;pointer-events:none}
+.logo-b{position:absolute;left:50%;top:max(56px, 9vh);width:min(660px, 30vw);height:auto;transform:translateX(-50%);clip-path:inset(0 0 100% 0);animation:land 1.5s cubic-bezier(.6,0,.2,1) .35s forwards}
+.intro-tag{position:absolute;left:50%;bottom:10vh;transform:translateX(-50%);text-align:center;font:600 20px/20px var(--f-logo);letter-spacing:.2px;text-transform:uppercase;color:var(--text);opacity:0;animation:fade .9s ease 1.4s forwards}
+.intro-skip{position:absolute;right:4vw;bottom:5vh;font-size:12px;color:var(--gray)}
+@keyframes land{to{clip-path:inset(0 0 0 0)}}
+@keyframes fade{to{opacity:1}}
+@keyframes blink{50%{opacity:0}}
+
+[hidden]{display:none!important}
+@media (max-width:1180px){ #hint .keys{display:none} }
+@media (max-width:820px){
+  .qr-text{display:none}
+  #kw{left:16px;top:18px} #brand{right:16px;top:16px} #hint{left:16px} #qr{right:16px}
+  .logo-s{width:96px} .qr-box{width:80px;height:80px} .pull{display:none}
+  #card{bottom:calc(var(--tab) + 120px)}
+}
+@media (prefers-reduced-motion: reduce){
+  .caret{animation:none}
+  .logo-b{animation:none;clip-path:none} .intro-tag{animation:none;opacity:1}
+  #intro{transition:none}
+}
+</style>
+</head>
+<body>
+<canvas id="world" tabindex="0" aria-label="사유지 거닐기: 사람들의 필지가 서 있는 3D 땅"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="hud" id="kw">
+  <p class="kw-label">이번 주 많이 쓴 키워드</p>
+  <div class="chips" id="chips"></div>
+</div>
+
+<div class="hud" id="top">
+  <p class="pull" id="pull">M을 누르면 전체보기</p>
+  <p class="ai" id="tourNote" hidden>천천히 거니는 중 · 아무 곳이나 누르면 직접 걸을 수 있어요</p>
+  <p class="ai toast out" id="toast" aria-live="polite"></p>
+</div>
+
+<div class="hud" id="brand">
+  <div id="logoSmall"></div>
+  <div class="stats"><div id="stats"></div><div id="people"></div></div>
+  <div class="source" id="source"></div>
+</div>
+
+<div class="hud" id="hint">
+  <ul class="keys">
+    <li><b>마우스 드래그</b>둘러보기 · 휠로 확대</li>
+    <li><b>방향키 · W A S D</b>걷기 · Shift 빠르게</li>
+    <li><b>Space</b>점프</li>
+    <li><b>V</b>1인칭 · 3인칭 바꾸기</li>
+    <li><b>M</b>전체 땅 보기</li>
+    <li><b>필지 누르기</b>다가가기</li>
+    <li><b>키워드 누르기</b>생각 펼치기</li>
+    <li><b>네모 상자</b>지금 함께 거니는 사람</li>
+    <li><b>Q · 1–8</b>표정으로 흔적 남기기</li>
+    <li><b>방명록</b>카메라 앞에서 검지로 싸인</li>
+    <li id="demoKey" hidden><b>N</b>새 생각 도착 미리보기</li>
+  </ul>
+  <div class="actions">
+    <button class="bar sub" id="overviewBtn" type="button">전체 땅 보기</button>
+    <button class="bar sub" id="fullBtn" type="button">전체화면</button>
+  </div>
+</div>
+
+<div class="hud" id="qr">
+  <div class="qr-text"><strong>당신의 생각도 이 땅에</strong>폰으로 적고 남기면<br>이곳에 당신의 필지가 섭니다</div>
+  <div class="qr-box" id="qrBox"></div>
+</div>
+
+<section class="hud" id="card" hidden aria-live="polite">
+  <div class="deck d2"></div><div class="deck d1"></div>
+  <div class="card-body">
+    <button class="x" id="cardClose" type="button" aria-label="카드 닫기"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M1.5 1.5l11 11M12.5 1.5l-11 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" fill="none"/></svg></button>
+    <p class="thought" id="cardText"></p>
+    <p class="meta" id="cardMeta"></p>
+    <div class="lines" id="cardLines" hidden></div>
+    <div class="traces">
+      <div class="tally" id="tally"></div>
+      <button class="bar" id="traceBtn" type="button" aria-haspopup="true" aria-expanded="false">흔적 남기기</button>
+    </div>
+    <div class="card-foot">
+      <span id="cardCount"></span>
+      <span class="card-nav">
+        <button class="link" id="cardPrev" type="button" aria-label="이전 생각">←</button>
+        <button class="link" id="cardNext" type="button">옆으로 넘기기 →</button>
+      </span>
+    </div>
+  </div>
+</section>
+
+<div class="hud" id="emoteDock" hidden>
+  <p id="dockText">표정으로 흔적을 남기거나 방명록에 싸인해요</p>
+  <div class="dock-row">
+    <button class="bar" id="emoteBtn" type="button" aria-haspopup="true" aria-expanded="false">흔적 남기기</button>
+    <button class="bar sub" id="guestBtn" type="button">방명록</button>
+  </div>
+</div>
+
+<section id="guest" hidden aria-label="방명록">
+  <video id="gVideo" playsinline muted></video>
+  <canvas id="gCanvas" aria-label="싸인을 그리는 곳"></canvas>
+  <div class="g-top"><p class="g-note" id="gStatus">카메라를 켜는 중</p><button class="x" id="gClose" type="button" aria-label="방명록 닫기"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M1.5 1.5l11 11M12.5 1.5l-11 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" fill="none"/></svg></button></div>
+  <p class="g-note g-guide" id="gGuide"></p>
+  <div class="g-actions">
+    <button class="bar sub" id="gClear" type="button">다시작성</button>
+    <button class="bar" id="gSave" type="button">남기기</button>
+  </div>
+</section>
+
+<div class="palette" id="palette" hidden role="menu" aria-label="흔적 고르기"><p id="palTitle"></p></div>
+
+<nav class="hud" id="tabbar" aria-label="사유지 탭">
+  <div class="tabs">
+    <button class="tab" type="button" data-tab="쓰기"><i></i>쓰기</button>
+    <button class="tab" type="button" data-tab="읽기"><i></i>읽기</button>
+    <button class="tab" type="button" aria-current="page"><i></i>거닐기</button>
+    <button class="tab" type="button" data-tab="찾아가기"><i></i>찾아가기</button>
+    <button class="tab" type="button" data-tab="돌아보기"><i></i>돌아보기</button>
+  </div>
+</nav>
+
+<div id="intro" role="button" tabindex="0" aria-label="인트로 넘기기">
+  <div id="logoBig"></div>
+  <div class="intro-tag">Private land<br>public thoughts</div>
+  <div class="intro-skip">누르면 바로 들어가요</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================
+   설정 · 웹앱(사유지)과 같은 수파베이스를 씀
+   ========================================================= */
+const CONFIG = {
+  SUPABASE_URL: 'https://kdkltisuuplmepwjroch.supabase.co',     // 웹앱 코드의 SB_URL 그대로
+  SUPABASE_KEY: 'sb_publishable_K7_0RSb2Hto0d-Ao26_Png_K7rK_eXk', // 웹앱 코드의 SB_KEY(공개용 publishable 키). secret · service_role 키는 절대 넣지 않기
+  LANDS_FN: 'geonilgi',        // 웹앱 필지를 읽어 오는 함수 (supabase-geonilgi.sql ①)
+  TRACE_TABLE: 'traces',       // 이모티콘 흔적 테이블 (②)
+  GUEST_TABLE: 'guestbook',    // 방명록 싸인 테이블 (③)
+  POLL_MS: 4000,               // 웹앱에서 바뀐 게 있는지 확인하는 간격
+  APP_URL: '',                 // QR로 열릴 사유지 웹앱 주소 (Netlify 주소)
+  BLOCK_WORDS: [],             // 큰 화면에 띄우지 않을 단어들
+  IDLE_MS: 40000,              // 이 시간 동안 아무도 안 만지면 혼자 거닐기 시작
+};
+/* 수파베이스 준비는 함께 있는 supabase-geonilgi.sql 을 SQL Editor에 한 번 붙여넣고 Run.
+   웹앱은 사용자마다 기록 전체를 sayuji_state 한 줄에 저장하는데,
+   그 SQL의 geonilgi() 함수가 '묻지 않은 생각'과 '흔적'만 골라서 이 화면에 건네줘요. */
+
+/* 흔적 이모티콘 (snskeyboard.com 특수문자 이모티콘에서 고름) */
+const EMOTICONS = [
+  { e: '(*• ω •*)', l: '좋아요' },
+  { e: '＼(︶ω︶)／', l: '신나요' },
+  { e: '(｡♥‿♥｡)', l: '반했어요' },
+  { e: '(｡•́︿•̀｡)', l: '슬퍼요' },
+  { e: '( ˙-˙ ٥)', l: '곰곰이' },
+  { e: 'Σ(°ロ°)', l: '놀라워요' },
+  { e: '(〃ω〃)', l: '나도 그래요' },
+  { e: '∠( ᐛ 」∠)＿', l: '드러누워요' },
+];
+
+/* =========================================================
+   웹앱 거닐기에 늘 있는 필지들 (웹앱 코드의 PLOTS · SEED_THOUGHTS · NEWS를 그대로 옮김)
+   좌표는 웹앱 필지 좌표 342×342: x 왼쪽 '겪은 것' ↔ 오른쪽 '개념', y 위 '물음' ↔ 아래 '단정'
+   ========================================================= */
+/* 웹앱 PLOTS 그대로: [필지, 설명, 덧말, [[키워드, cx, cy, size, rot, [[생각, x, y]…]]…]] */
+const APP_PLOTS = [
+  ["1022","나와 결이 가까운 필지","",[["그리움",89.3,168.7,18.2,-4,[["오래 안 쓴 번호로 전화를 걸 뻔했다.",64,196],["그리운 건 사람일까 그때의 나일까",118,74],["예전 동네 빵집이 없어진 걸 지도에서 알았다.",86,236]]],["기억",150,210,14.1,6,[["사진은 남았는데 그날 날씨가 기억나지 않는다.",150,210]]]]],
+  ["1130","나와 결이 조금 다른 필지","",[["거리",69.5,177.7,15,-6,[["막차 안에서 모르는 사람의 통화를 들었다",58,205],["같은 칸에 탄 사람들은 서로를 모르는 척하는 데 능숙하다.",82,150]]],["쉼",237.3,86.9,15,5,[["밤에만 생각이 정리되는 건 낮이 너무 시끄러워서일까",222,66],["불을 끄고 누워야 하루가 끝난다.",254,108]]],["순간",184.2,125.3,17,-3,[["지나가는 소리에 고개를 돌린 순간, 계절이 바뀌어 있었다.",170,142],["정류장에서 놓친 버스가 하루를 바꿔놓았다.",200,108]]]]],
+  ["1205","나와 결이 가까운 필지","",[["끝",79,213,16.4,6,[["마지막 출근날 책상 서랍이 생각보다 가벼웠다.",60,230],["끝났다고 생각한 일이 꿈에서 다시 시작된다.",98,196]]],["시작",126,93,16.4,-4,[["새 노트를 사면 첫 장을 오래 비워둔다.",104,120],["시작이 반이라면 나머지 반은 누가 하나",148,66]]]]],
+  ["0207","나와 결이 가까운 필지","",[["변화",156.3,77,13.3,-3,[["계절이 바뀐 걸 옷장보다 냄새로 먼저 안다.",125,62],["변하지 않는 게 하나쯤 있다고 믿고 싶을 때가 있다.",188,92]]],["선택",135.8,156.3,15.9,-6,[["여행은 도망일까, 돌아옴일까",150,118],["떠나기로 한 순간보다 표를 끊던 순간이 더 무서웠다.",100,172],["남는 것도 선택이라는 걸 늦게 알았다.",158,180]]],["기준",170,211,15.9,5,[["잘하는 일과 좋아하는 일 사이에서 하루가 다 갔다.",135,238],["남의 속도에 맞추다 보면 내 속도를 잊는다.",205,196]]]]],
+  ["0915","나와 결이 가장 먼 곳","개념 · 물음 쪽으로 생각해요",[["의미",253,96,24,-6,[["말은 생각을 담는 그릇일까, 생각을 만드는 틀일까",236,80],["이름을 붙이면 낯선 것은 조금 덜 낯설어질까",270,116]]],["끝",233,150,21,5,[["끝이 없다면 지금은 무엇의 중간일까",228,160]]],["시간",272,56,18,-3,[["무한을 떠올리면 늘 반복이 먼저 떠오른다. 그건 무한일까",285,46]]]]],
+  ["0519","나와 결이 조금 다른 필지","",[["시간",210,89,20,-6,[["시간은 원일까 선일까",198,76],["기다림이 길어지면 시간에도 무게가 생긴다.",224,102]]],["기억",116,194,20,5,[["기억은 사실보다 그날의 기분을 더 오래 붙잡는다.",100,180],["어떤 냄새는 오래된 방으로 나를 데려간다.",132,210]]]]],
+  ["0802","나와 결이 가까운 필지","",[["쉼",96,150,18,4,[["목적 없이 걷는 시간이 하루 중 가장 정직하다.",96,150]]],["변화",150,96,15,-5,[["은행잎 냄새로 계절이 바뀐 걸 알았다.",150,96]]]]],
+  ["0311","나와 결이 가까운 필지","",[["습관",105,236,16.4,4,[["출근길 같은 자리에 서면 하루가 덜 흔들린다.",92,222],["일요일 밤마다 방을 치우는 건 다음 주를 미리 정리하는 일 같다.",118,250]]],["쉼",93,111,16.4,-5,[["아무것도 안 한 날에도 피곤한 건 왜일까",112,82],["낮잠에서 깨면 잠깐 다른 계절에 있다 온 것 같다.",74,140]]],["순간",160,196,14.1,-2,[["신호등이 바뀌기 전 몇 초가 하루 중 가장 조용하다.",160,196]]]]],
+  ["0624","나와 결이 조금 다른 필지","",[["비교",83,230,16.4,-6,[["남의 하루를 보고 내 하루를 깎아내릴 때가 있다.",96,214],["잘 지내는 사람을 보면 반갑다가도 조금 작아진다.",70,246]]],["시선",226,149,16.4,5,[["보이는 나와 보는 나 중 누가 더 나일까",238,70],["사람들은 내가 생각하는 것만큼 나를 보지 않는다.",214,228]]],["솔직함",132,262,14.1,3,[["괜찮다는 말이 제일 쉬운 거짓말이다.",132,262]]]]],
+  ["0105","나와 결이 먼 필지","개념 · 단정 쪽으로 생각해요",[["기준",239,250,16.4,5,[["기준은 남이 정해준 순간부터 짐이 된다.",252,238],["좋은 하루의 조건은 생각보다 적다.",226,262]]],["소속",276,206,16.4,-3,[["어디에도 속하지 않는다는 건 어디든 갈 수 있다는 뜻이기도 하다.",284,190],["이름표가 많을수록 나는 흐려진다.",268,222]]],["변화",204,214,14.1,-6,[["사람은 잘 안 변하지만 방향은 바뀐다.",204,214]]]]],
+  ["0718","나와 결이 조금 다른 필지","",[["불안",99,106,16.4,-5,[["답장이 늦으면 내가 뭘 잘못했는지부터 떠올린다.",70,120],["괜찮을 거라는 말이 오히려 불안을 키울 때가 있다",128,92]]],["선택",120,210,14.1,4,[["고르지 않은 쪽이 자꾸 더 좋아 보인다.",120,210]]],["이해",200,236,14.1,2,[["다 이해한다는 말은 대화를 끝내고 싶을 때 나온다.",200,236]]]]],
+  ["0429","나와 결이 먼 필지","개념 · 물음 쪽으로 생각해요",[["의미",249,83,16.4,-3,[["의미 없는 일도 오래 하면 의미가 생길까",262,62],["좋아하는 이유를 말할 수 없으면 덜 좋아하는 걸까",236,104]]],["침묵",286,136,14.1,5,[["침묵도 대답이 될 수 있다면 무엇을 묻고 있었을까",286,136]]]]],
+  ["0930","나와 결이 조금 다른 필지","",[["돌봄",137,188,18.2,3,[["화분에 물 주는 날만큼은 일찍 일어난다.",66,236],["누군가를 챙기는 일이 나를 버티게 한다.",150,230],["돌봄도 배워야 하는 걸까",196,98]]],["거리",214,250,14.1,-5,[["가까울수록 말을 아끼게 된다.",214,250]]]]],
+  ["0816","나와 결이 조금 다른 필지","",[["시간",101,135,16.4,4,[["여름은 매년 처음 오는 것처럼 덥다.",70,200],["하루는 긴데 일주일은 왜 짧을까",132,70]]],["순간",58,250,14.1,-6,[["소나기가 그친 뒤의 냄새는 몇 분만 남는다.",58,250]]],["기억",168,214,14.1,3,[["어릴 때 살던 집은 기억 속에서 점점 넓어진다.",168,214]]]]]
+];
+/* 웹앱 예시 필지(내 필지 1013)의 묻지 않은 생각: [id, 날짜, 키워드들, x, y, 글] */
+const APP_SEED = [
+  ["t01","2026-09-06","이해",230,290,"⟪사람은 무엇으로 사는가➊⟫를 스무 살 가을에 읽었다. 사랑이 내 마음속에만 있는 감정이 아니라 세상이 굴러가는 이치처럼 느껴졌다. 진부하게 들려도, 결국 모든 건 사랑을 뿌리로 시작된다고 믿는다."],
+  ["t02","2026-09-15","이해",180,235,"좋아하는 게 왜 이렇게 많냐는 말을 들은 적이 있다. 그땐 핀잔처럼 들렸는데, 지금은 좋아하는 게 많을수록 이해할 수 있는 사람도 많아진다고 생각한다. 누군가 무엇을 왜 좋아하는지 알게 되면 그 사람이 보이니까."],
+  ["t03","2026-10-14","이해",305,245,"이해는 가슴보다 머리로 하는 사랑 같다. 싫어도 한 번쯤 왜 그럴까 생각해 보는 것. 저절로 끌리는 마음이 아니라 애써 다가가는 마음이라서 더 어렵고, 그래서 더 사랑에 가깝다."],
+  ["t04","2026-10-27","이해",75,255,"지하철에서 나를 밀치고 지나간 사람에게 소리치고 싶었다. 대신 많이 급한가 보다, 하고 삼켰다. 행동으로 옮기지 않은 것도 하나의 행동이라는 걸 그때 알았다. 요즘은 그럴 수 있지, 가 입에 붙었다."],
+  ["t05","2026-10-03","비교",100,205,"다른 디자이너들의 작업을 보면 다들 어떻게 저런 걸 하나 싶다. 나는 왜 이렇게 특색 없이 중구난방일까. 남의 떡은 원래 커 보이는 법이라는데, 알면서도 매번 작아진다."],
+  ["t06","2026-10-20","비교",255,85,"멋있다고 생각한 디자인을 그대로 따라 할 수는 없다. 차별점이 없으면 흘러가는 물살을 따라갈 뿐 파도를 일으킬 수 없다. 파도를 일으키는 건 개성인데, 내 개성은 무엇일까?"],
+  ["t07","2026-09-22","그리움",295,55,"우리는 왜 사랑하면 보고 싶다고 할까. 사랑은 눈에 보이지 않아서, 보이지 않으면 불안해서일지도 모른다. 그래서 나는 보고 싶다는 말이 나오는지로 진짜 마음과 흉내 낸 마음을 가려본다."],
+  ["t08","2026-10-18","그리움",55,105,"좋아하는 언니가 결혼을 했다. 진심으로 축하하면서도 이제 자주 못 볼 생각에 속이 상했다. 축하와 서운함이 한 마음 안에 같이 있을 수 있을까?"],
+  ["t09","2026-09-10","거리",165,55,"사람을 싫어하는 사람은 사실 사람을 좋아했던 사람이라는 글을 봤다. 사람한테 지친 거라고. 요즘 사람도 편식하는 내가 사랑 없는 사람처럼 느껴지는데, 나는 정말 사람을 좋아했던 사람일까?"],
+  ["t10","2026-10-08","거리",125,285,"이유도 모른 채 멀어지는 일이 반복되면 거절이 곧 내 부족함처럼 느껴진다. 그래서 요즘은 누구를 만나도 의심부터 한다. 그래도 미워하지는 않으려고 한다. 미움은 결국 나를 미워하는 일과 같으니까."],
+  ["t11","2026-10-24","거리",135,110,"⟨오차즈케의 맛➊⟩의 부부는 서로를 잘 모른 채 결혼해 부딪히다가 어느 순간 상대를 이해하게 된다. 원래 좋던 사이를 되찾은 게 아니라 처음으로 가까워진 거라서 더 울었다. 가까워진다는 건 회복일까, 발전일까."],
+  ["t12","2026-10-02","쉼",30,190,"휴학을 하니 숨통이 트였다. 날씨 좋은 날 공원에 앉아 샐러드를 먹는데, 부는 바람과 햇빛만으로 기분이 좋아질 수 있다는 걸 오랜만에 알았다."],
+  ["t13","2026-09-18","쉼",85,150,"수업이 끝나고 김밥을 사 들고 청계천에 앉았다. 마냥 가라앉아 있을 수는 없어서 이 감정이 어디서 시작됐는지 곱씹었다. 시작점을 알아야 빠져나올 수 있을 것 같았다."],
+  ["t14","2026-11-03","쉼",225,130,"기분이 태도가 되지 말자는 말은 지키기 어렵다. 억누르면 안에서 상해서 결국 밖으로 새어 나온다. 생각에 생각을 거듭하면 늘 내 탓으로 끝나는데, 생각을 멈추는 법을 아는 사람이 있을까?"],
+  ["t15","2026-10-11","기억",40,235,"어릴 때 마트에서 오백 원을 넣고 하던 코디 게임 카드를 가챠에서 다시 만났다. 이름도 몰라 기억에만 있던 걸 마주치니, 나만 기억하는 게 아니었구나 싶어 반가웠다."],
+  ["t16","2026-09-28","기억",105,315,"스물다섯에 증명사진을 찍었다. 얼굴은 매일 보면 변하는 걸 모르니까, 일 년에 한 장씩은 남겨 두려고 한다."],
+  ["t17","2026-09-25","선택",150,195,"교수님이 원하는 대로 했다면 마음은 편했을 거다. 그런데 그렇게 만든 디자인은 즐겁지 않을 거라는 확신이 들었다. 학점은 물 건너갔으니 내가 하고 싶은 걸 하자고 정하자 이상하게 홀가분해졌다."],
+  ["t18","2026-09-02","선택",45,305,"미용사들이 내 머리를 보고 괜찮겠냐고 물을 때마다 싫었다. 내 머리는 내가 제일 잘 안다. 상한 곱슬머리여도 한 번 사는 인생, 하고 싶을 때 탈색을 했다."],
+  ["t19","2026-11-06","선택",270,310,"요즘 인생 모토는 하고 싶은 건 다 해보자다. 남에게 피해 주지 않는 선에서, 후회하기 전에. ⟪자유론➊⟫이 말하는 자유도 결국 이런 게 아닐까 싶다."],
+  ["t20","2026-09-13","변화",28,268,"상한 머리를 숏컷으로 확 잘랐다. 리셋하는 기분으로. 머리 하나 바꿨을 뿐인데 다른 사람이 된 것처럼 걸음이 가벼웠다."],
+  ["t21","2026-10-05","변화",150,320,"본격적으로 자취를 시작했다. 생필품을 한 보따리 사 들고 오면서 내 살림이 생긴다는 게 이런 거구나 싶었다. 전입 신고까지 하고 나니 정말 여기서 시작하는 기분이 들었다."],
+  ["t23","2026-10-31","변화",210,190,"일 년 동안 일한 곳을 그만두며 송별 자리를 직접 만들었다. 사람이 늘 어려웠던 내가 먼저 모이자고 한 건 처음이었다. 헤어짐이 이렇게 아쉽다는 게, 내가 조금 변했다는 증거 같았다."],
+  ["t22","2026-10-09","기준",295,290,"뭐든지 어떤 것을 기준으로 생각하냐에 따라 성취감도 다르고 목표와 기준이 달라지는 것 같다. 뭐든지 생각하기 나름이다 라는 생각이 든다. 때문에 내가 너무 기준을 높게 잡았다면 낮게 잡았을 때보다 실패하거나 성취감을 느끼는 것이 다르고 삶을 느끼는 감정 또한 다를 것이다. 영화 ⟨업➊⟩ 에 주인공 할아버지나 꼬마아이, ⟨늑대아이➋⟩의 주인공 남동생과 누나의 이야기 사실 이 기준이라는 이야기와는 다르지만 같은 환경에 있어도 어떤 생각을 가지고 있냐에 따라 그 사람의 삶이 달라진다는 것이다."]
+];
+const APP_NEWS = [["0207","2시간 전","여행은 도망일까, 돌아옴일까"],["1130","어제","막차 안에서 모르는 사람의 통화를 들었다"],["0519","3일 전","시간은 원일까 선일까"]];
+const APP_KW_ROT = {"이해":8,"비교":-5,"그리움":4,"거리":-6,"쉼":5,"기억":-8,"선택":-3,"변화":6,"기준":6};
+
+/* 연결이 안 될 때 N 키로 보는 '새 생각 도착' 미리보기: [필지, 키워드, 생각, x, y] */
+const EXTRA = [
+  ['0412','친구','오늘은 내가 먼저 연락했다. 별일 아닌 척했지만 별일이었다.',96,201],
+  ['2112','이별','다시 만나도 그때의 우리는 아닐 것이다.',245,252],
+  ['1130','쉼','잠이 안 오는 밤에는 생각이 나를 쓰는 것 같다.',221,144],
+  ['2112','순간','가을 햇빛은 등 뒤에서 더 따뜻하다.',122,214],
+  ['0707','선택','오늘 처음으로 일이 재밌다고 말해봤다. 말하고 나니 조금 그렇게 됐다.',86,171],
+  ['0707','시간','시간을 아끼려다 시간을 잃는 날이 있다.',257,234],
+  ['1019','거리','혼자 영화를 보고 나오면 이야기할 사람이 없어서 생각이 길어진다.',134,124],
+  ['1019','기억','이 도시에도 내가 좋아하는 골목이 하나쯤은 생겼다.',86,234],
+];
+
+/* ========================================================= */
+const W = 3.2, BOTTOM = 1.0, PCY = BOTTOM + W / 2, EYE = 1.7;
+const LAND = 32, WALK = 40, TEX = 1024, M = 110, SPREAD = 22;
+const C = { text: '#6C6C6C', gray: '#8E8E8E', box: '#959595', soft: '#DADADA', mid: '#E5E5E5', pale: '#F3F3F3', paper: '#FFFFFF' };
+const BG = 0xFFFFFF;
+const UI = '"Noto Sans KR", system-ui, sans-serif';
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const EMO_SET = new Set(EMOTICONS.map(x => x.e));
+const ME = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)).replace(/-/g, '').slice(0, 12);
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const avg = a => a.reduce((s, v) => s + v, 0) / a.length;
+const ease = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const r2 = v => Math.round(v * 100) / 100;
+const fmtDate = d => `${d.getMonth() + 1}/${d.getDate()}`;
+const quad = t => `${t.x < 0 ? '겪은 것' : '개념'} · ${t.y < 0 ? '단정' : '물음'}`;
+function hash(str){ let h = 2166136261; for (const ch of String(str)){ h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+const hf = (s, salt = '') => (hash(s + '|' + salt) % 10007) / 10007;
+const $ = id => document.getElementById(id);
+
+/* ---------- 로고 (피그마 Sayuzi: 땅 블록이 글자를 잘라냄) ---------- */
+/* '사유지' 한글 타이틀: 피그마 느림보고딕 글자를 윤곽선으로 내보낸 것 (폰트 파일 없이 같은 모양) */
+const HANGUL_TITLE = 'M0 11.95C3.975 10.375 5.9 7.52498 6.625 5.04998V0.499975H9.125L9.1 5.04998C9.825 7.52498 11.75 10.375 15.725 11.95L14.875 14.1C11.375 12.725 9.125 10.375 7.875 8.04998C6.6 10.375 4.35 12.725 0.85 14.1L0 11.95ZM17.55 14.4V0.224975H20.05V0.724975H22.675V3.09997H20.05V14.4H17.55ZM30.3498 14.4V11.375H25.4248V8.97498H45.8248V11.375H40.9248V14.4H38.4248V11.375H32.8498V14.4H30.3498ZM25.4748 4.04998C25.4748 1.77497 27.3998 -2.46763e-05 35.6248 -2.46763e-05C43.8248 -2.46763e-05 45.7748 1.77497 45.7748 4.04998C45.7748 6.44997 43.7998 8.12498 35.6248 8.12498C27.4248 8.12498 25.4748 6.44997 25.4748 4.04998ZM27.9748 4.04998C27.9748 5.12497 28.6748 5.72498 35.6248 5.72498C42.5498 5.72498 43.2748 5.09998 43.2748 4.04998C43.2748 3.07498 42.5248 2.39997 35.6248 2.39997C28.6998 2.39997 27.9748 3.07498 27.9748 4.04998ZM66.9369 14.4V0.224975H69.4369V14.4H66.9369ZM49.0869 12C52.9619 10.425 54.8619 7.54997 55.5369 5.04998V2.89998H49.9369V0.499975H63.5869V2.89998H58.0119V5.02498C58.7119 7.29998 60.6119 9.92498 64.4869 11.5L63.6369 13.65C60.2869 12.3 58.0869 10.15 56.8369 8.02498C55.6119 10.375 53.3869 12.775 49.9369 14.15L49.0869 12Z';
+function logoSVG(cls, id){
+  /* 블록 6개를 한 덩어리 윤곽으로 그려야 블록 사이에 흰 틈이 안 생김 */
+  const land = 'M7 59H360V166H334V124H273V126H220V151H147V128H82V169H7Z';
+  const rects = `<path d="${land}"/>`;
+  const L = [['S',0,165,140,500],['a',79,127,120,565],['y',143,124,120,565],['u',211,124,120,565],['z',280,124,120,565],['i',337,165,140,500]];
+  const letters = L.map(l => `<text x="${l[1]}" y="${l[2]}" font-size="${l[3]}" font-weight="${l[4]}">${l[0]}</text>`).join('');
+  return `<svg class="${cls}" viewBox="0 56 371 114" role="img" aria-label="Sayuzi 사유지">
+    <defs><clipPath id="${id}">${rects}</clipPath></defs>
+    <g fill="${C.box}">${rects}</g>
+    <g clip-path="url(#${id})" fill="${C.text}" font-family="'Plus Jakarta Sans', sans-serif">${letters}</g>
+    <path transform="translate(257.03 150.9)" fill="#6A6A6A" d="${HANGUL_TITLE}"/>
+  </svg>`;
+}
+$('logoBig').innerHTML = logoSVG('logo-b', 'clipBig');
+$('logoSmall').innerHTML = logoSVG('logo-s', 'clipSmall');
+
+/* ---------- 3D 기본 ---------- */
+const canvas = $('world');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight, false);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(BG);
+scene.fog = new THREE.Fog(BG, 16, 86);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+camera.rotation.order = 'YXZ';
+const cam = { pos: new THREE.Vector3(0, EYE, 54), yaw: 0, pitch: -0.03 };
+const aniso = renderer.capabilities.getMaxAnisotropy();
+
+function canvasTex(w, h){
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = aniso;
+  return { c, ctx, t };
+}
+function lines(pts, color){
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color })));
+}
+
+/* 바닥: 땅 전체가 하나의 큰 필지 */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshBasicMaterial({ color: BG }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
+(function grid(){
+  const E = 110, S = 2, pts = [];
+  for (let i = -E; i <= E; i += S){ if (i === 0) continue; pts.push(-E, .005, i, E, .005, i, i, .005, -E, i, .005, E); }
+  lines(pts, 0xEBEBEB);
+  lines([-E, .01, 0, E, .01, 0, 0, .01, -E, 0, .01, E], 0xD2D2D2);
+  const b = LAND; lines([-b,.012,-b, b,.012,-b, b,.012,-b, b,.012,b, b,.012,b, -b,.012,b, -b,.012,b, -b,.012,-b], 0xDADADA);
+})();
+function groundWord(text, x, z){
+  const { ctx, t } = canvasTex(1024, 256);
+  ctx.fillStyle = C.soft; ctx.font = `500 140px ${UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 512, 128); t.needsUpdate = true;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(12, 3), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, .02, z); scene.add(m);
+}
+function blurTex(w, h, alpha){
+  const { ctx, t } = canvasTex(w, h);
+  const g = ctx.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+  g.addColorStop(0, `rgba(0,0,0,${alpha})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.save(); ctx.scale(1, h / w); ctx.fillStyle = g; ctx.fillRect(0, 0, w, w); ctx.restore(); t.needsUpdate = true;
+  return t;
+}
+const shadowTex = blurTex(256, 96, .16);
+
+/* ---------- 데이터: 웹앱 거닐기와 같은 필지들 ---------- */
+const parcels = new Map();        // 필지 번호 → 필지
+const panelMeshes = [];
+const thoughtsById = new Map();   // 생각 id → 생각 (웹앱 흔적 열쇠와 같은 모양: '0207/o-1-0')
+let built = false, live = false;
+
+const S342 = TEX / 342;                                        // 웹앱 필지 좌표 → 그림 좌표
+const toNX = x => (x * S342 - M) / (TEX - 2 * M) * 2 - 1;      // -1 겪은 것 … +1 개념
+const toNY = y => 1 - (y * S342 - M) / (TEX - 2 * M) * 2;      // -1 단정 … +1 물음
+const cleanText = v => String(v ?? '').replace(/[➊-➓]/g, '').trim();   // 작품 번호(➊➋…)는 빼고
+function parseISO(v){ const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(String(v || '')); return m ? new Date(+m[1], m[2] - 1, +m[3]) : null; }
+/* 숫자로 끝나는 필지 번호 뒤 조사: 0·1·3·6·7·8은 받침이 있음 */
+const josa = (code, a, b) => /[013678]$/.test(code) ? a : b;
+
+function blocked(text){ return CONFIG.BLOCK_WORDS.some(w => w && text.includes(w)); }
+
+/* 웹앱 '남의 필지' 생각 날짜: 소식에 뜬 글은 그 시점, 나머지는 필지마다 고정된 지난 날짜 (웹앱 othDate와 같은 계산) */
+const NEWS_AGO = { '2시간 전': 0, '어제': 1, '3일 전': 3 };
+function othDate(id, text){
+  const n = APP_NEWS.find(n => n[0] === id && n[2] === text);
+  const ago = n ? (NEWS_AGO[n[1]] ?? 2) : 4 + hash(id + text) % 58;
+  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ago); return d;
+}
+/* 웹앱 kwStats와 같은 계산: 키워드 자리 = 그 키워드 생각들의 무게중심, 크기 = 글 수, 겹치면 살짝 벌림 */
+function appKwStats(list){
+  const m = new Map();
+  for (const t of list) for (const k of t.kw){ if (!m.has(k)) m.set(k, { name: k, list: [] }); m.get(k).list.push(t); }
+  const out = [];
+  for (const g of m.values()){
+    const n = g.list.length;
+    g.cx = avg(g.list.map(t => t.x342)); g.cy = avg(g.list.map(t => t.y342));
+    g.size = Math.min(30, 8.5 + 5.6 * Math.sqrt(n));
+    g.rot = APP_KW_ROT[g.name] ?? ((hash(g.name) % 17) - 8);
+    out.push(g);
+  }
+  for (let it = 0; it < 40; it++){
+    let moved = false;
+    for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++){
+      const a = out[i], b = out[j];
+      let dx = b.cx - a.cx, dy = b.cy - a.cy, d = Math.hypot(dx, dy);
+      const min = (a.size + b.size) / 2 + 24;
+      if (d >= min) continue;
+      if (d < .5){ const ang = (hash(a.name + b.name) % 360) * Math.PI / 180; dx = Math.cos(ang); dy = Math.sin(ang); d = 1; }
+      const push = (min - d) / 2, ux = dx / d, uy = dy / d;
+      a.cx -= ux * push; a.cy -= uy * push; b.cx += ux * push; b.cy += uy * push; moved = true;
+    }
+    out.forEach(g => { g.cx = clamp(g.cx, 30, 312); g.cy = clamp(g.cy, 36, 312); });
+    if (!moved) break;
+  }
+  return out;
+}
+
+/* 필지 하나를 웹앱 모양 그대로 맞추기. 새 필지는 땅에서 솟아오르고, 바뀐 필지는 그 자리에서 다시 그림.
+   src = { list: [{ id, text, date, x342, y342, kw: [] }], kws: [{ name, cx, cy, size, rot(도), list }] } */
+function syncParcel(code, src, announce = false){
+  let p = parcels.get(code); const isNew = !p;
+  if (isNew){ p = { code, thoughts: [], kws: [], hi: null, hover: null, drawn: undefined, traceCount: 0, markCount: 0 }; parcels.set(code, p); }
+  const sig = JSON.stringify(src.list.map(t => [t.id, t.text, +t.date, t.x342, t.y342, t.kw]));
+  if (!isNew && sig === p.sig) return p;
+  p.sig = sig;
+  const old = new Map(p.thoughts.map(t => [t.id, t]));
+  const next = [], added = [], edited = [];
+  for (const r of src.list){
+    if (!r.text || blocked(r.text)) continue;
+    let t = old.get(r.id);
+    if (!t){ t = { id: r.id }; if (!isNew) added.push(t); }
+    else { if (t.text !== r.text) edited.push(t); old.delete(r.id); }
+    Object.assign(t, { text: r.text, date: r.date, x342: r.x342, y342: r.y342, px: r.x342 * S342, py: r.y342 * S342,
+                       x: clamp(toNX(r.x342), -1, 1), y: clamp(toNY(r.y342), -1, 1), kwList: r.kw, keyword: r.kw[0] || '생각', parcel: p });
+    next.push(t);
+  }
+  const removed = [...old.values()];
+  for (const t of removed) thoughtsById.delete(t.id);
+  for (const t of next) thoughtsById.set(t.id, t);
+  const byId = new Map(next.map(t => [t.id, t]));
+  p.thoughts = next;
+  p.kws = src.kws.map(k => {
+    const ts = k.list.map(r => byId.get(r.id)).filter(Boolean).sort((a, b) => a.date - b.date || (a.id < b.id ? -1 : 1));
+    return { name: k.name, thoughts: ts, count: ts.length, px: k.cx * S342, py: k.cy * S342, s: k.size * 2.4, rot: k.rot * Math.PI / 180 };
+  }).filter(k => k.count);
+  if (!built) return p;
+  if (isNew){
+    placeParcel(p, true); buildParcel(p); riseParcel(p);
+    if (announce){ toast(`새 필지 ${code}${josa(code, '이', '가')} 땅에 섰어요`); pendingArrival = p; p.arrivalKw = null; }
+  } else {
+    /* 지금 읽고 있는 생각이 묻히거나 지워졌으면 카드를 닫고, 고쳐졌으면 다시 씀 */
+    if (card.items && card.items.some(it => removed.includes(it.t))) closeCard();
+    else if (card.items && edited.includes(card.items[card.idx].t)) renderCard();
+    if (p.open && !p.kws.some(k => k.name === p.open)) p.open = null;
+    p.nodes = null; redraw(p, true); drawLabel(p);
+    if (added.length && announce){
+      const t = added[added.length - 1];
+      flashKeyword(p, t.keyword); ripple(p.pos.x, p.pos.z);
+      toast(`필지 ${code}에 생각 하나가 남겨졌어요`);
+      p.arrivalKw = t.keyword; pendingArrival = p;
+    }
+  }
+  updateChips(); updateStats();
+  return p;
+}
+function dropParcel(p){
+  if (card.items && card.items.some(it => it.p === p)) closeCard();
+  if (gather && gather.list.includes(p)) exitGather(false);
+  if (current === p){ current = null; if (mode === 'approach') mode = 'walk'; }
+  if (hoverP === p) hoverP = null;
+  if (pendingArrival === p) pendingArrival = null;
+  const i = recent.indexOf(p); if (i >= 0) recent.splice(i, 1);
+  if (p.group){
+    scene.remove(p.group);
+    p.group.traverse(o => { if (o.geometry && o.geometry !== poleGeo) o.geometry.dispose(); });
+    p.tex.dispose(); p.ltex.dispose(); p.mats.forEach(m => m.dispose());
+    const k = panelMeshes.indexOf(p.mesh); if (k >= 0) panelMeshes.splice(k, 1);
+  }
+  for (const t of p.thoughts) thoughtsById.delete(t.id);
+  parcels.delete(p.code);
+  updateChips(); updateStats();
+}
+
+/* 웹앱 기본 필지 14곳 + 예시 필지 1013 */
+function loadAppPlots(){
+  for (const [id, , , kws] of APP_PLOTS){
+    const list = [], ks = [];
+    kws.forEach(([name, cx, cy, size, rot, ths], ki) => {
+      const kl = ths.map(([text, x, y], i) => ({ id: `${id}/o-${ki}-${i}`, text: cleanText(text), date: othDate(id, text), x342: x, y342: y, kw: [name] }));
+      list.push(...kl); ks.push({ name, cx, cy, size, rot, list: kl });
+    });
+    syncParcel(id, { list, kws: ks });
+  }
+  const list = APP_SEED.map(([tid, date, kw, x, y, text]) => ({ id: `1013/${tid}`, text: cleanText(text), date: parseISO(date), x342: x, y342: y, kw: kw.split(',') }));
+  syncParcel('1013', { list, kws: appKwStats(list) });
+}
+
+/* 웹앱에 로그인한 사람들의 필지 (수파베이스 geonilgi 함수가 건네준 것) */
+const STATIC_CODES = new Set([...APP_PLOTS.map(p => p[0]), '1013']);
+const landCodes = new Map();      // 필지 열쇠 → 필지 번호 (한 번 정하면 바뀌지 않음)
+const landsOn = new Set();        // 지금 땅에 있는 서버 필지 열쇠
+let landStamp = null;
+const pad2 = n => String(n).padStart(2, '0');
+function codeForLand(key){
+  if (landCodes.has(key)) return landCodes.get(key);
+  const taken = new Set([...STATIC_CODES, ...landCodes.values()]);
+  let code = null;
+  for (let s = 0; s < 400 && !code; s++){ const h = hash(key + ':' + s), c = pad2(1 + h % 12) + pad2(1 + (h >>> 8) % 28); if (!taken.has(c)) code = c; }
+  for (let s = 0; !code; s++){ const c = String(hash(key + '#' + s) % 10000).padStart(4, '0'); if (!taken.has(c)) code = c; }
+  landCodes.set(key, code); return code;
+}
+function toAppThought(key, t){
+  if (!t || t.id == null) return null;
+  const text = cleanText(t.text); if (!text) return null;
+  const x = Number(t.x), y = Number(t.y);
+  const kw = (Array.isArray(t.kw) ? t.kw : [t.kw]).map(k => String(k ?? '').trim().slice(0, 12)).filter(Boolean).slice(0, 3);
+  return { id: `${key.slice(0, 12)}/${String(t.id).slice(0, 40)}`, text, date: parseISO(t.date) || new Date(),
+           x342: Number.isFinite(x) ? clamp(x, 0, 342) : 170, y342: Number.isFinite(y) ? clamp(y, 0, 342) : 170, kw: kw.length ? kw : ['생각'] };
+}
+function applyLands(res, announce){
+  if (!res || typeof res !== 'object') return;
+  if (typeof res.stamp === 'string') landStamp = res.stamp;
+  if (!Array.isArray(res.lands)) return;   // 바뀐 게 없다는 짧은 답
+  const t0 = v => { const n = Date.parse(v); return Number.isFinite(n) ? n : Infinity; };
+  const lands = res.lands.filter(l => l && typeof l.land === 'string')
+    .sort((a, b) => t0(a.joined) - t0(b.joined) || (a.land < b.land ? -1 : 1));
+  const seen = new Set();
+  for (const l of lands){
+    const code = codeForLand(l.land); seen.add(l.land); landsOn.add(l.land);
+    const list = (Array.isArray(l.thoughts) ? l.thoughts : []).map(t => toAppThought(l.land, t)).filter(Boolean);
+    syncParcel(code, { list, kws: appKwStats(list) }, announce);
+  }
+  for (const key of [...landsOn]) if (!seen.has(key)){ landsOn.delete(key); const p = parcels.get(landCodes.get(key)); if (p) dropParcel(p); }
+  applyMarks(res, announce);
+}
+
+/* 웹앱에서 남긴 흔적: 네모(좋아요)와 한 줄. 누가 남겼는지는 오지 않음 */
+const appMarks = { sq: new Map(), lines: new Map() };
+function applyMarks(res, announce){
+  const sq = new Map(), lines = new Map();
+  for (const [k, n] of Object.entries(res.squares && typeof res.squares === 'object' ? res.squares : {})) if (Number(n) > 0) sq.set(String(k), Number(n));
+  for (const l of Array.isArray(res.lines) ? res.lines : []){
+    if (!l || !l.key || !l.text) continue;
+    const k = String(l.key); if (!lines.has(k)) lines.set(k, []);
+    lines.get(k).push(cleanText(l.text).slice(0, 60));
+  }
+  if (announce && built){
+    for (const [k, n] of sq) if (n > (appMarks.sq.get(k) || 0)) markArrived(k, '네모');
+    for (const [k, ls] of lines) if (ls.length > (appMarks.lines.get(k) || []).length) markArrived(k, '한 줄');
+  }
+  appMarks.sq = sq; appMarks.lines = lines;
+  const per = new Map();
+  for (const [k, n] of sq){ const c = k.split('/')[0]; per.set(c, (per.get(c) || 0) + n); }
+  for (const [k, ls] of lines){ const c = k.split('/')[0]; per.set(c, (per.get(c) || 0) + ls.length); }
+  for (const p of parcels.values()){
+    const n = per.get(p.code) || 0;
+    if (n !== p.markCount){ p.markCount = n; if (p.group) drawLabel(p); }
+  }
+  if (card.items) renderTally();
+}
+let lastMarkToast = 0;
+function markArrived(key, kind){
+  const t = thoughtsById.get(key), p = t ? t.parcel : parcels.get(key.split('/')[0]);
+  if (!p || !p.group) return;
+  const at = (t && kwWorld(p, t.keyword)) || p.group.localToWorld(new THREE.Vector3(0, PCY + W / 2, .06));
+  floatSquare(at.x, at.y + .2, at.z);
+  if (Date.now() - lastMarkToast > 5000){ lastMarkToast = Date.now(); toast(`웹앱에서 필지 ${p.code}에 ${kind} 흔적을 남겼어요`); }
+}
+
+/* 필지의 생각 무게중심이 땅 위 자리: 오른쪽일수록 개념, 멀수록 물음 */
+let norm = null;
+const meanXY = p => p.thoughts.length ? { mx: avg(p.thoughts.map(t => t.x)), my: avg(p.thoughts.map(t => t.y)) } : { mx: 0, my: 0 };
+function computeNorm(){
+  const ms = [...parcels.values()].filter(p => p.thoughts.length).map(meanXY);
+  if (!ms.length){ norm = null; return; }
+  const xs = ms.map(m => m.mx), ys = ms.map(m => m.my);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  norm = { cx: (x0 + x1) / 2, hx: Math.max(.1, (x1 - x0) / 2), cy: (y0 + y1) / 2, hy: Math.max(.1, (y1 - y0) / 2) };
+}
+function targetFor(p){
+  const { mx, my } = meanXY(p);
+  const nx = norm ? clamp((mx - norm.cx) / norm.hx, -1.15, 1.15) : mx;
+  const ny = norm ? clamp((my - norm.cy) / norm.hy, -1.15, 1.15) : my;
+  return { x: clamp(nx * SPREAD + (hf(p.code, 'jx') - .5) * 8, -LAND + 4, LAND - 4),
+           z: clamp(-ny * SPREAD + (hf(p.code, 'jz') - .5) * 8, -LAND + 4, LAND - 4) };
+}
+function placeParcel(p, nudge){
+  p.pos = targetFor(p); p.rot = (hf(p.code, 'r') - .5) * .5;
+  if (nudge) relax([p], [...parcels.values()].filter(q => q !== p && q.pos));
+}
+function relax(movable, fixed = [], iters = 120){
+  const MIN = 6.4, all = [...movable, ...fixed];
+  for (let k = 0; k < iters; k++){
+    for (const a of movable){
+      for (const b of all){
+        if (a === b) continue;
+        let dx = a.pos.x - b.pos.x, dz = a.pos.z - b.pos.z, d = Math.hypot(dx, dz);
+        if (d < .01){ dx = hf(a.code, 'dx') - .5; dz = hf(a.code, 'dz') - .5; d = Math.hypot(dx, dz) || 1; }
+        if (d < MIN){
+          const both = movable.includes(b), push = (MIN - d) * (both ? .5 : 1);
+          a.pos.x += dx / d * push; a.pos.z += dz / d * push;
+          if (both){ b.pos.x -= dx / d * push; b.pos.z -= dz / d * push; }
+        }
+      }
+      a.pos.x = clamp(a.pos.x, -LAND + 4, LAND - 4); a.pos.z = clamp(a.pos.z, -LAND + 4, LAND - 4);
+    }
+  }
+}
+
+/* ---------- 필지 그리기 (피그마 '필지 0207' · 키워드를 누르면 '돌아보기_2_키워드펼침'처럼 펼침) ---------- */
+function panelState(p){
+  const kw = p.hover ?? p.hi ?? (gather && gather.list.includes(p) ? gather.kw : null);
+  const sel = !!(gather && gather.sel === p);
+  return { kw, sel, key: `${kw}|${sel}|${p.open}|${p.selT}|${p.hoverT}` };
+}
+function drawPanel(p){
+  const st = panelState(p); p.drawn = st.key;
+  if (p.open && p.kws.some(k => k.name === p.open)) return drawOpen(p);
+  const c = p.ctx, hiKw = st.kw;
+  c.clearRect(0, 0, TEX, TEX);
+  c.fillStyle = 'rgba(255,255,255,.65)'; c.fillRect(0, 0, TEX, TEX);
+  if (st.sel){ c.strokeStyle = C.text; c.lineWidth = 12; c.strokeRect(6, 6, TEX - 12, TEX - 12); }
+  else { c.strokeStyle = C.gray; c.lineWidth = 4; c.strokeRect(2, 2, TEX - 4, TEX - 4); }
+  drawAxes(c);
+  for (const k of p.kws){
+    const on = k.name === hiKw;
+    c.strokeStyle = on ? C.text : C.gray; c.lineWidth = on ? 6 : 3;
+    c.beginPath(); c.moveTo(TEX / 2, TEX / 2); c.lineTo(k.px, k.py); c.stroke();
+  }
+  c.fillStyle = C.text; c.beginPath(); c.arc(TEX / 2, TEX / 2, 10, 0, Math.PI * 2); c.fill();
+  p.hits = [];
+  for (const k of p.kws){
+    const on = k.name === hiKw;
+    drawSquare(c, k, C.text);
+    if (on){ c.save(); c.translate(k.px, k.py); c.rotate(k.rot); c.strokeStyle = C.text; c.lineWidth = 4; c.strokeRect(-k.s / 2 - 12, -k.s / 2 - 12, k.s + 24, k.s + 24); c.restore(); }
+    c.fillStyle = C.text; c.font = `${on ? 700 : 500} 38px ${UI}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(k.name, k.px, k.py - k.s / 2 - (on ? 40 : 28));
+    pushKwHit(p, k);
+  }
+  p.tex.needsUpdate = true;
+}
+function drawAxes(c){
+  c.strokeStyle = C.soft; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(TEX / 2, 70); c.lineTo(TEX / 2, TEX - 70); c.moveTo(48, TEX / 2); c.lineTo(TEX - 48, TEX / 2); c.stroke();
+  c.fillStyle = C.gray; c.font = `500 36px ${UI}`; c.textBaseline = 'middle';
+  c.textAlign = 'center'; c.fillText('물음', TEX / 2, 40); c.fillText('단정', TEX / 2, TEX - 40);
+  c.textAlign = 'left'; c.fillText('겪은 것', 24, TEX / 2 - 46);
+  c.textAlign = 'right'; c.fillText('개념', TEX - 24, TEX / 2 - 46);
+}
+function drawSquare(c, k, color){
+  c.save(); c.translate(k.px, k.py); c.rotate(k.rot); c.fillStyle = color; c.fillRect(-k.s / 2, -k.s / 2, k.s, k.s); c.restore();
+}
+function pushKwHit(p, k){
+  const hw = Math.max(k.s / 2 + 26, 72);
+  p.hits.push({ type: 'kw', key: k.name, x0: k.px - hw, x1: k.px + hw, y0: k.py - k.s / 2 - 64, y1: k.py + k.s / 2 + 26 });
+}
+/* 생각 글은 첫 문장만, 길면 끊어서 */
+function shortText(s){
+  let a = (s.match(/^[^.?!]*[?!]?/) || [s])[0].trim() || s;
+  if ([...a].length > 15){
+    let out = '';
+    for (const w of a.split(' ')){ const n = out ? out + ' ' + w : w; if ([...n].length > 14) break; out = n; }
+    a = (out || [...a].slice(0, 14).join('')) + '…';
+  }
+  return a;
+}
+function thoughtNodes(p, K){
+  if (p.nodes && p.nodes.kw === K.name && p.nodes.n === K.thoughts.length) return p.nodes.list;
+  const c = p.ctx, Q = 15, GAP = 14;
+  c.font = `500 36px ${UI}`;
+  const ts = K.thoughts.slice(-12), cnt = {}, nth = {};
+  for (const t of ts){ const d = fmtDate(t.date); cnt[d] = (cnt[d] || 0) + 1; }
+  const list = ts.map(t => {
+    const d = fmtDate(t.date); nth[d] = (nth[d] || 0) + 1;
+    const label = d + (cnt[d] > 1 ? `·${nth[d]}` : '');
+    return { t, label, w: c.measureText(label).width, px: t.px, py: t.py };
+  });
+  /* 날짜는 네모의 바깥쪽(키워드에서 먼 쪽)에 붙여서 선과 겹치지 않게 */
+  const place = n => {
+    n.side = n.px >= K.px ? 1 : -1;
+    if (n.side === 1 && n.px + Q + GAP + n.w > TEX - 24) n.side = -1;
+    if (n.side === -1 && n.px - Q - GAP - n.w < 24) n.side = 1;
+  };
+  const rect = n => n.side === 1
+    ? [n.px - Q - 4, n.py - 26, n.px + Q + GAP + n.w + 6, n.py + 26]
+    : [n.px - Q - GAP - n.w - 6, n.py - 26, n.px + Q + 4, n.py + 26];
+  const textRect = n => n.side === 1
+    ? [n.px + Q + 4, n.py - 24, n.px + Q + GAP + n.w + 6, n.py + 24]
+    : [n.px - Q - GAP - n.w - 6, n.py - 24, n.px - Q - 4, n.py + 24];
+  const overlap = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+  const segHits = (x1, y1, x2, y2, r) => {
+    for (let i = 0; i <= 24; i++){
+      const k = i / 24, x = x1 + (x2 - x1) * k, y = y1 + (y2 - y1) * k;
+      if (x > r[0] && x < r[2] && y > r[1] && y < r[3]) return y;
+    }
+    return null;
+  };
+  const kRect = [K.px - Math.max(K.s / 2 + 12, 64), K.py - K.s / 2 - 66, K.px + Math.max(K.s / 2 + 12, 64), K.py + K.s / 2 + 14];
+  for (let it = 0; it < 160; it++){
+    for (const a of list){
+      place(a);
+      const ra = rect(a), ta = textRect(a);
+      if (overlap(ra, kRect)) a.py += a.py < (kRect[1] + kRect[3]) / 2 ? -5 : 5;
+      for (const b of list){
+        if (b === a) continue;
+        const rb = rect(b);
+        if (overlap(ra, rb)) a.py += a.py <= b.py ? -4 : 4;
+        const y = segHits(K.px, K.py, b.px, b.py, ta);
+        if (y !== null) a.py += a.py <= y ? -4 : 4;
+      }
+      a.px = clamp(a.px, 60, TEX - 60); a.py = clamp(a.py, 96, TEX - 96);
+    }
+  }
+  list.forEach(place);
+  p.nodes = { kw: K.name, n: K.thoughts.length, list };
+  return list;
+}
+function drawOpen(p){
+  const c = p.ctx, K = p.kws.find(k => k.name === p.open);
+  c.clearRect(0, 0, TEX, TEX);
+  c.fillStyle = 'rgba(243,243,243,.7)'; c.fillRect(0, 0, TEX, TEX);
+  c.strokeStyle = C.gray; c.lineWidth = 4; c.strokeRect(2, 2, TEX - 4, TEX - 4);
+  c.save(); c.filter = 'blur(6px)'; drawAxes(c); c.restore();
+  const nodes = thoughtNodes(p, K);
+  c.strokeStyle = C.gray; c.lineWidth = 2.5;
+  for (const n of nodes){ c.beginPath(); c.moveTo(K.px, K.py); c.lineTo(n.px, n.py); c.stroke(); }
+  drawSquare(c, K, C.text);
+  c.fillStyle = C.text; c.font = `500 38px ${UI}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(K.name, K.px, K.py - K.s / 2 - 28);
+  p.hits = [];
+  for (const n of nodes){
+    const on = n.t.id === p.selT, hv = n.t.id === p.hoverT, q = 30, GAP = 14;
+    c.fillStyle = on ? C.text : C.paper; c.fillRect(n.px - q / 2, n.py - q / 2, q, q);
+    c.strokeStyle = C.text; c.lineWidth = 3; c.strokeRect(n.px - q / 2, n.py - q / 2, q, q);
+    c.font = `${on || hv ? 500 : 400} 36px ${UI}`; c.fillStyle = C.text; c.textBaseline = 'middle';
+    c.textAlign = n.side === 1 ? 'left' : 'right';
+    const tx = n.px + n.side * (q / 2 + GAP); c.fillText(n.label, tx, n.py + 2);
+    if (hv && !on){ c.fillRect(n.side === 1 ? tx : tx - n.w, n.py + 26, n.w, 3); }
+    const x0 = n.side === 1 ? n.px - q : tx - n.w - 8, x1 = n.side === 1 ? tx + n.w + 8 : n.px + q;
+    p.hits.push({ type: 't', key: n.t.id, x0, x1, y0: n.py - 34, y1: n.py + 34 });
+  }
+  pushKwHit(p, K);
+  p.tex.needsUpdate = true;
+}
+function spreadOf(K){
+  if (K.thoughts.length < 2) return '';
+  const cx = avg(K.thoughts.map(t => t.x)), cy = avg(K.thoughts.map(t => t.y));
+  const d = avg(K.thoughts.map(t => Math.hypot(t.x - cx, t.y - cy)));
+  return d > .42 ? '결이 여러 갈래로 흩어짐' : '결이 한쪽으로 모여 있음';
+}
+function drawLabel(p){
+  const c = p.lctx; c.clearRect(0, 0, 1024, 112); c.textBaseline = 'middle';
+  const K = p.open && p.kws.find(k => k.name === p.open);
+  if (K){
+    const sp = spreadOf(K);
+    c.font = `500 38px ${UI}`; c.fillStyle = C.gray; c.textAlign = 'center';
+    c.fillText(`${K.name} · 생각 ${K.count}개${sp ? ' · ' + sp : ''}`, 512, 58);
+  } else {
+    const a = `필지 ${p.code}`, nTr = (p.traceCount || 0) + (p.markCount || 0), b = `  ·  생각 ${p.thoughts.length}${nTr ? `  ·  흔적 ${nTr}` : ''}`;
+    c.font = `500 40px ${UI}`; const wa = c.measureText(a).width;
+    c.font = `400 34px ${UI}`; const wb = c.measureText(b).width;
+    const x = 512 - (wa + wb) / 2; c.textAlign = 'left';
+    c.font = `500 40px ${UI}`; c.fillStyle = C.gray; c.fillText(a, x, 58);
+    c.font = `400 34px ${UI}`; c.fillStyle = C.gray; c.fillText(b, x + wa, 60);
+  }
+  p.ltex.needsUpdate = true;
+}
+const poleGeo = new THREE.BoxGeometry(.02, BOTTOM, .02);
+const poleMat = new THREE.MeshBasicMaterial({ color: 0xDADADA });
+function buildParcel(p){
+  const { c, ctx, t } = canvasTex(TEX, TEX); p.canvas = c; p.ctx = ctx; p.tex = t;
+  const front = new THREE.MeshBasicMaterial({ map: t, transparent: true, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(W, W), front);
+  mesh.position.y = PCY; mesh.userData.parcel = p;
+  const pole = new THREE.Mesh(poleGeo, poleMat); pole.position.y = BOTTOM / 2;
+  const L = canvasTex(1024, 112); p.lctx = L.ctx; p.ltex = L.t;
+  const labelMat = new THREE.MeshBasicMaterial({ map: L.t, transparent: true, depthWrite: false, opacity: .85 });
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(3.47, .38), labelMat); label.position.set(0, .45, .06);
+  const shMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.6), shMat); shadow.rotation.x = -Math.PI / 2; shadow.position.y = .015;
+  const g = new THREE.Group(); g.add(mesh, pole, label, shadow);
+  g.position.set(p.pos.x, 0, p.pos.z); g.rotation.y = p.rot;
+  scene.add(g);
+  Object.assign(p, { group: g, mesh, labelMat, mats: [front, labelMat, shMat] });
+  p.mats.forEach(m => m.userData.base = m.opacity);
+  panelMeshes.push(mesh);
+  drawPanel(p); drawLabel(p);
+}
+function setOpacity(p, o){ for (const m of p.mats) m.opacity = m.userData.base * o; }
+function redraw(p, force = false){
+  if (!p.ctx) return;
+  if (force || panelState(p).key !== p.drawn){ if (force) p.nodes = null; drawPanel(p); }
+}
+function hitAt(p, x, y){
+  return (p.hits || []).find(h => x >= h.x0 && x <= h.x1 && y >= h.y0 && y <= h.y1) || null;
+}
+function kwWorld(p, name){
+  const k = p.kws.find(k => k.name === name); if (!k) return null;
+  p.group.updateMatrixWorld();
+  return p.group.localToWorld(new THREE.Vector3((k.px / TEX - .5) * W, PCY + (.5 - k.py / TEX) * W, .06));
+}
+
+/* ---------- 애니메이션 ---------- */
+const anims = [];
+function anim(dur, fn, done){ anims.push({ t0: performance.now(), dur: reduced ? Math.min(dur, 300) : dur, fn, done }); }
+function riseParcel(p){
+  p.group.position.y = -5;
+  anim(2800, k => { p.group.position.y = -5 * (1 - ease(k)); }, () => { p.group.position.y = 0; });
+  ripple(p.pos.x, p.pos.z);
+}
+function ripple(x, z){
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([-1,0,-1, 1,0,-1, 1,0,1, -1,0,1], 3));
+  const m = new THREE.LineBasicMaterial({ color: 0x959595, transparent: true });
+  const loop = new THREE.LineLoop(g, m); loop.position.set(x, .03, z); scene.add(loop);
+  anim(2400, k => { const s = 1.5 + ease(k) * 6; loop.scale.set(s, 1, s); m.opacity = 1 - k; }, () => { scene.remove(loop); g.dispose(); m.dispose(); });
+}
+function flashKeyword(p, name){
+  p.hi = name; redraw(p);
+  setTimeout(() => { if (p.hi === name && !(card.items && card.items[0].p === p)){ p.hi = null; redraw(p); } }, 3200);
+}
+
+/* 이모티콘이 필지에서 떠오름 */
+const emoTex = new Map();
+function emoTexture(emo){
+  if (emoTex.has(emo)) return emoTex.get(emo);
+  const { ctx, t } = canvasTex(512, 128);
+  ctx.font = `500 64px ${UI}`; ctx.fillStyle = C.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(emo, 256, 66); t.needsUpdate = true;
+  emoTex.set(emo, t); return t;
+}
+function floatAt(emo, x0, y0, z0, rise = 1.7, size = 1){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emoTexture(emo), transparent: true, depthWrite: false }));
+  s.scale.set(1.8 * size, .45 * size, 1); s.position.set(x0, y0, z0); scene.add(s);
+  anim(3600, k => { s.position.set(x0 + Math.sin(k * 5) * .08, y0 + ease(k) * rise, z0); s.material.opacity = k < .45 ? 1 : 1 - (k - .45) / .55; },
+       () => { scene.remove(s); s.material.dispose(); });
+}
+/* 웹앱에서 네모 흔적이 오면: 네모가 들려 올라가 모서리를 위로 세웠다가 돌며 사라짐 (웹앱 squareBurst처럼) */
+const sqTex = (() => { const { ctx, t } = canvasTex(64, 64); ctx.fillStyle = C.text; ctx.fillRect(8, 8, 48, 48); t.needsUpdate = true; return t; })();
+function floatSquare(x0, y0, z0){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: sqTex, transparent: true, depthWrite: false }));
+  s.scale.set(.34, .34, 1); s.position.set(x0, y0, z0); scene.add(s);
+  anim(1800, k => {
+    const up = k < .45 ? ease(k / .45) : 1, fall = k < .6 ? 0 : ease((k - .6) / .4);
+    s.position.set(x0, y0 + up * .9 - fall * .5, z0);
+    s.material.rotation = Math.min(1, k / .45) * Math.PI / 4 + fall * Math.PI;
+    s.material.opacity = k < .6 ? 1 : 1 - fall;
+  }, () => { scene.remove(s); s.material.dispose(); });
+}
+function floatEmo(p, t, emo){
+  const at = kwWorld(p, (card.ctx === 'parcel' && p.open) || t.keyword) || p.group.localToWorld(new THREE.Vector3(0, PCY + W / 2, .06));
+  floatAt(emo, at.x + (Math.random() - .5) * .5, at.y + .25, at.z);
+}
+
+/* ---------- 함께 거니는 사람: 생각 조각 상자와 발자국 ---------- */
+const footTex = (() => {
+  const { ctx, t } = canvasTex(64, 128);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath(); ctx.ellipse(32, 42, 21, 36, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(32, 104, 15, 20, 0, 0, Math.PI * 2); ctx.fill();
+  t.needsUpdate = true; return t;
+})();
+const FOOT_GEO = new THREE.PlaneGeometry(.14, .28);
+const feet = [];
+function footprint(x, z, h, side, color, life){
+  let f;
+  if (feet.length >= 260) f = feet.shift();
+  else {
+    const m = new THREE.Mesh(FOOT_GEO, new THREE.MeshBasicMaterial({ map: footTex, transparent: true, depthWrite: false }));
+    m.rotation.order = 'YXZ'; scene.add(m); f = { m };
+  }
+  const rx = Math.cos(h), rz = -Math.sin(h);
+  f.m.position.set(x + rx * .11 * side, .02, z + rz * .11 * side);
+  f.m.rotation.set(-Math.PI / 2, h, 0);
+  f.m.material.color.set(color); f.t0 = performance.now(); f.life = life; f.m.visible = true;
+  feet.push(f);
+}
+function updateFeet(now){
+  for (const f of feet){
+    const k = (now - f.t0) / f.life;
+    if (k >= 1){ f.m.visible = false; continue; }
+    f.m.material.opacity = .85 * (1 - k * k);
+  }
+}
+const PEER_GEO = new THREE.BoxGeometry(.32, .32, .32);
+/* 상자 윗면만 밝게 해서 정육면체로 읽히게 */
+const boxMats = (side, top) => { const s = new THREE.MeshBasicMaterial({ color: side }), t = new THREE.MeshBasicMaterial({ color: top }); return [s, s, t, s, s, s]; };
+const PEER_MAT = boxMats(0x959595, 0xDADADA);
+const PEER_SH_GEO = new THREE.PlaneGeometry(.9, .5);
+const PEER_SH_MAT = new THREE.MeshBasicMaterial({ map: blurTex(128, 72, .14), transparent: true, depthWrite: false });
+const peers = new Map();
+function upsertPeer(id, x, z, h, demo = false){
+  x = Number(x); z = Number(z); h = Number(h);
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return;
+  x = clamp(x, -WALK, WALK); z = clamp(z, -WALK, WALK);
+  let pr = peers.get(id);
+  if (!pr){
+    const mesh = new THREE.Mesh(PEER_GEO, PEER_MAT); mesh.position.set(x, 1.35, z);
+    const sh = new THREE.Mesh(PEER_SH_GEO, PEER_SH_MAT); sh.rotation.x = -Math.PI / 2; sh.position.set(x, .016, z);
+    scene.add(mesh, sh);
+    pr = { id, mesh, sh, x, z, tx: x, tz: z, h: 0, fx: x, fz: z, side: 1, phase: Math.random() * 6, demo };
+    peers.set(id, pr); updatePeople();
+  }
+  pr.tx = x; pr.tz = z; if (Number.isFinite(h)) pr.h = h; pr.last = performance.now();
+}
+function removePeer(id){ const pr = peers.get(id); if (!pr) return; scene.remove(pr.mesh, pr.sh); peers.delete(id); updatePeople(); }
+function updatePeers(dt, now){
+  for (const pr of [...peers.values()]){
+    if (!pr.demo && !pr.id.startsWith('r:') && now - pr.last > 20000){ removePeer(pr.id); continue; }
+    const k = 1 - Math.pow(.03, dt);
+    pr.x += (pr.tx - pr.x) * k; pr.z += (pr.tz - pr.z) * k;
+    pr.mesh.position.set(pr.x, 1.35 + Math.sin(now / 650 + pr.phase) * .05, pr.z);
+    pr.mesh.rotation.y = pr.h;
+    pr.sh.position.set(pr.x, .016, pr.z);
+    const dx = pr.x - pr.fx, dz = pr.z - pr.fz;
+    if (Math.hypot(dx, dz) > .75){
+      footprint(pr.x, pr.z, Math.atan2(-dx, -dz), pr.side, 0xADADAD, 15000);
+      pr.side *= -1; pr.fx = pr.x; pr.fz = pr.z;
+    }
+  }
+}
+function updatePeople(){
+  const n = peers.size + 1;
+  $('people').innerHTML = n === 1 ? '지금은 혼자 거니는 중' : `지금 <b>${n}명</b>이 거닐고 있어요`;
+}
+
+/* 예시 상자 (연결 전 미리보기용) */
+function spawnDemo(){
+  ['demo-a', 'demo-b'].forEach((id, i) => {
+    upsertPeer(id, (i ? 9 : -11), (i ? -4 : 12), 0, true);
+    Object.assign(peers.get(id), { goal: null, wait: 1500 + i * 2500, at: null });
+  });
+}
+function updateDemo(dt){
+  for (const pr of peers.values()){
+    if (!pr.demo) continue;
+    if (pr.wait > 0){
+      pr.wait -= dt * 1000;
+      if (pr.wait <= 0 && pr.at && Math.random() < .5){
+        const t = pr.at.thoughts[Math.floor(Math.random() * pr.at.thoughts.length)];
+        applyTrace(t.id, EMOTICONS[Math.floor(Math.random() * EMOTICONS.length)].e, true);
+      }
+      continue;
+    }
+    if (!pr.goal){
+      const list = [...parcels.values()].filter(p => p.group && p !== pr.at);
+      const p = list[Math.floor(Math.random() * list.length)]; if (!p) continue;
+      pr.goal = { x: p.pos.x + Math.sin(p.rot) * 3.4 + (Math.random() - .5) * 1.6, z: p.pos.z + Math.cos(p.rot) * 3.4, p };
+    }
+    const dx = pr.goal.x - pr.tx, dz = pr.goal.z - pr.tz, d = Math.hypot(dx, dz);
+    if (d < .15){
+      pr.at = pr.goal.p; pr.goal = null; pr.wait = 5000 + Math.random() * 7000;
+      pr.h = Math.atan2(-(pr.at.pos.x - pr.tx), -(pr.at.pos.z - pr.tz)); continue;
+    }
+    const sp = Math.min(d, 1.4 * dt); pr.tx += dx / d * sp; pr.tz += dz / d * sp; pr.h = Math.atan2(-dx, -dz);
+    if (Math.random() < dt / 24) peerEmote(pr, EMOTICONS[Math.floor(Math.random() * EMOTICONS.length)].e);
+  }
+}
+
+/* ---------- 흔적 (이모티콘) ---------- */
+const traces = new Map();   // 생각 id → Map(이모티콘 → 수)
+let lastTraceAt = 0, lastRemoteToast = 0;
+function applyTrace(tid, emo, show){
+  if (typeof tid !== 'string' || tid.length > 80 || !EMO_SET.has(emo)) return;
+  let m = traces.get(tid); if (!m){ m = new Map(); traces.set(tid, m); }
+  m.set(emo, (m.get(emo) || 0) + 1);
+  const t = thoughtsById.get(tid);
+  if (t){
+    const p = t.parcel; p.traceCount = (p.traceCount || 0) + 1;
+    if (p.group){ drawLabel(p); if (show) floatEmo(p, t, emo); }
+  }
+  if (card.items && card.items[card.idx].t.id === tid) renderTally();
+}
+function leaveTrace(emo){
+  const it = card.items && card.items[card.idx]; if (!it) return;
+  const now = performance.now(); if (now - lastTraceAt < 1200) return; lastTraceAt = now;
+  applyTrace(it.t.id, emo, true);
+  net.sendTrace({ tid: it.t.id, emo, code: it.p.code });
+}
+function remoteTrace(tr){
+  if (!tr || typeof tr.tid !== 'string' || !EMO_SET.has(tr.emo)) return;
+  applyTrace(tr.tid, tr.emo, true);
+  const t = thoughtsById.get(tr.tid);
+  if (t && Date.now() - lastRemoteToast > 6000){ lastRemoteToast = Date.now(); toast(`필지 ${t.parcel.code}에 ${tr.emo} 흔적이 남았어요`); }
+}
+function renderTally(){
+  const box = $('tally'), lb = $('cardLines'); box.textContent = ''; lb.textContent = ''; lb.hidden = true;
+  const it = card.items && card.items[card.idx]; if (!it) return;
+  const id = it.t.id, m = traces.get(id), nSq = appMarks.sq.get(id) || 0, ls = appMarks.lines.get(id) || [];
+  /* 웹앱에서 남긴 한 줄 흔적 (최근 것 두 개) */
+  if (ls.length){
+    lb.hidden = false;
+    for (const l of ls.slice(0, 2)){ const p = document.createElement('p'); p.textContent = l; lb.append(p); }
+    if (ls.length > 2){ const p = document.createElement('p'); p.textContent = `한 줄 흔적 ${ls.length - 2}개 더`; lb.append(p); }
+  }
+  /* 웹앱의 네모(좋아요) */
+  if (nSq){
+    const s = document.createElement('span'); s.className = 'sqm'; s.title = '웹앱에서 남긴 네모';
+    const c = document.createElement('small'); c.textContent = nSq; s.append(document.createElement('i'), c); box.append(s);
+  }
+  if ((!m || !m.size) && !nSq && !ls.length){ const s = document.createElement('span'); s.className = 'none'; s.textContent = '아직 남은 흔적이 없어요'; box.append(s); return; }
+  if (!m) return;
+  for (const [e, n] of [...m].sort((a, b) => b[1] - a[1])){
+    const s = document.createElement('span'); s.textContent = e;
+    const c = document.createElement('small'); c.textContent = n; s.append(c); box.append(s);
+  }
+}
+let palPick = null, palFrom = null;
+(function buildPalette(){
+  const pal = $('palette');
+  EMOTICONS.forEach(({ e, l }, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'emo'; b.setAttribute('role', 'menuitem');
+    b.setAttribute('aria-label', `${l} ${e}`);
+    const s = document.createElement('span'); s.textContent = e;
+    const sm = document.createElement('small'); sm.textContent = l + ' ';
+    const k = document.createElement('kbd'); k.textContent = i + 1; sm.append(k);
+    b.append(s, sm);
+    b.addEventListener('click', () => { activity(); pickEmo(e); });
+    pal.append(b);
+  });
+})();
+function pickEmo(e){ const f = palPick; setPalette(false); if (f) f(e); }
+function openPalette(from, title, onPick, anchor = from){
+  palPick = onPick; palFrom = from;
+  $('palTitle').textContent = title;
+  const pal = $('palette'); pal.hidden = false;
+  const r = anchor.getBoundingClientRect(), w = pal.offsetWidth;
+  pal.style.left = clamp(r.left + r.width / 2 - w / 2, 16, innerWidth - w - 16) + 'px';
+  pal.style.bottom = (innerHeight - r.top + 26) + 'px';
+  from.setAttribute('aria-expanded', 'true');
+}
+function setPalette(open){
+  if (open) return;
+  $('palette').hidden = true;
+  if (palFrom) palFrom.setAttribute('aria-expanded', 'false');
+  palPick = null; palFrom = null;
+}
+const openCardPalette = () => openPalette($('traceBtn'), '이 생각에 표정으로 흔적을 남겨요', leaveTrace, cardEl);
+const openWalkPalette = () => openPalette($('emoteBtn'), '지금 내 자리에 표정을 남겨요 · 함께 거니는 사람에게 보여요', emote, $('emoteDock'));
+function togglePalette(open){ if (!$('palette').hidden) setPalette(false); else open(); }
+$('traceBtn').addEventListener('click', () => { activity(); togglePalette(openCardPalette); });
+$('emoteBtn').addEventListener('click', () => { activity(); togglePalette(openWalkPalette); });
+
+/* 걷는 중 표정: 내 자리 위로 떠오르고, 바닥에 흔적이 남았다가 천천히 지워짐 */
+const groundPos = { x: 0, z: LAND + 2, h: 0 };
+const IMPRINT_GEO = new THREE.PlaneGeometry(1.5, .375);
+const imprints = [];
+let lastEmoteAt = 0;
+function imprint(emo, x, z, h){
+  const m = new THREE.Mesh(IMPRINT_GEO, new THREE.MeshBasicMaterial({ map: emoTexture(emo), transparent: true, depthWrite: false, opacity: .55 }));
+  m.rotation.order = 'YXZ'; m.rotation.set(-Math.PI / 2, h, 0);
+  m.position.set(x - Math.sin(h) * .7, .022, z - Math.cos(h) * .7);
+  scene.add(m); imprints.push({ m, t0: performance.now() });
+  if (imprints.length > 50){ const o = imprints.shift(); scene.remove(o.m); o.m.material.dispose(); }
+}
+function updateImprints(now){
+  for (const im of imprints){
+    const k = (now - im.t0) / 40000;
+    im.m.visible = k < 1; if (k < 1) im.m.material.opacity = .55 * (1 - k);
+  }
+}
+function emote(emo){
+  if (!EMO_SET.has(emo)) return;
+  const now = performance.now(); if (now - lastEmoteAt < 1200) return; lastEmoteAt = now;
+  const { x, z, h } = groundPos;
+  if (cam.pos.y < 2.6){
+    floatAt(emo, cam.pos.x - Math.sin(cam.yaw) * 3.4, cam.pos.y - .45, cam.pos.z - Math.cos(cam.yaw) * 3.4, .9, .55);
+  } else floatAt(emo, x, 1.8, z, 1.6);
+  imprint(emo, x, z, h);
+  net.sendEmote(x, z, h, emo);
+}
+function peerEmote(pr, emo){
+  floatAt(emo, pr.x, 1.85, pr.z, 1.3);
+  imprint(emo, pr.tx, pr.tz, pr.h);
+}
+function remoteEmote(d){
+  if (!d || !EMO_SET.has(d.emo) || !d.id || d.id === ME) return;
+  upsertPeer(String(d.id), d.x, d.z, d.h);
+  const pr = peers.get(String(d.id)); if (pr) peerEmote(pr, d.emo);
+}
+
+/* 띠 버튼: 띠가 어느 글자 밖으로도 삐져나오지 않게, 글자마다 위아래 끝을 재서
+   가장 안쪽 선에 띠의 윗변과 밑변을 맞춤 (글자와 띠 사이에 빈틈이 보이지 않음) */
+const mctx = document.createElement('canvas').getContext('2d');
+function fitBar(b){
+  if (!b || !b.offsetParent) return;
+  let probe = b.querySelector('.bl');
+  if (!probe){ probe = document.createElement('span'); probe.className = 'bl'; probe.setAttribute('aria-hidden', 'true'); b.append(probe); }
+  const cs = getComputedStyle(b), fs = parseFloat(cs.fontSize) || 15, k = 8;
+  mctx.font = `${cs.fontWeight} ${fs * k}px ${cs.fontFamily}`;
+  let asc = Infinity, desc = Infinity;
+  for (const ch of b.textContent.trim()){
+    if (/\s/.test(ch)) continue;
+    const m = mctx.measureText(ch);
+    asc = Math.min(asc, m.actualBoundingBoxAscent); desc = Math.min(desc, m.actualBoundingBoxDescent);
+  }
+  if (!Number.isFinite(asc) || !Number.isFinite(desc)) return;
+  asc /= k; desc /= k;
+  const base = probe.getBoundingClientRect().top - b.getBoundingClientRect().top - b.clientTop;
+  const dpr = devicePixelRatio || 1;
+  const top = Math.ceil((base - asc) * dpr) / dpr, bot = Math.floor((base + desc) * dpr) / dpr;
+  b.style.setProperty('--bt', top + 'px'); b.style.setProperty('--bh', Math.max(1, bot - top) + 'px');
+}
+function fitBars(){ document.querySelectorAll('.bar').forEach(fitBar); }
+document.fonts.ready.then(fitBars);
+document.fonts.load('500 15px "Noto Sans KR"', '전체땅보기다시걷화면흔적남').then(fitBars).catch(() => {});
+setTimeout(fitBars, 1500); setTimeout(fitBars, 4000);
+addEventListener('resize', fitBars);
+document.fonts.addEventListener?.('loadingdone', fitBars);
+
+/* ---------- 연결: 아티팩트(room·db) · 수파베이스(realtime) · 혼자 ---------- */
+const net = { kind: 'local', sendPos(){}, sendTrace(){}, sendEmote(){}, sendSign(){} };
+async function initNet(){
+  if (sbOn() && sbReach){
+    try { await initSupabaseNet(); return; } catch (e){ console.warn('수파베이스 실시간 연결 실패', e); }
+  }
+  if (window.claude && typeof window.claude.use === 'function'){
+    try { await initRoomNet(); } catch (e){ console.warn(e); }
+  }
+}
+async function initSupabaseNet(){
+  const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm');
+  const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, { auth: { persistSession: false } });
+  try {
+    const { data, error } = await sb.from(CONFIG.TRACE_TABLE).select('thought_id,emoticon').limit(20000);
+    if (!error && data) for (const r of data) applyTrace(String(r.thought_id), r.emoticon, false);
+  } catch (e){ console.warn(e); }
+  const ch = sb.channel('sayuji-geonilgi', { config: { presence: { key: ME }, broadcast: { self: false } } });
+  ch.on('presence', { event: 'sync' }, () => {
+      const ids = new Set(Object.keys(ch.presenceState()));
+      for (const id of [...peers.keys()]) if (!peers.get(id).demo && !ids.has(id)) removePeer(id);
+    })
+    .on('broadcast', { event: 'pos' }, ({ payload }) => { if (payload && payload.id && payload.id !== ME) upsertPeer(String(payload.id), payload.x, payload.z, payload.h); })
+    .on('broadcast', { event: 'trace' }, ({ payload }) => remoteTrace(payload))
+    .on('broadcast', { event: 'emote' }, ({ payload }) => remoteEmote(payload))
+    .on('broadcast', { event: 'sign' }, ({ payload }) => remoteSign(payload))
+    .subscribe(status => { if (status === 'SUBSCRIBED') ch.track({ t: Date.now() }); });
+  net.kind = 'supabase';
+  let guestOK = false;
+  try {
+    const { data, error } = await sb.from(CONFIG.GUEST_TABLE).select('strokes,aspect,created_at,id').order('created_at', { ascending: false }).limit(40);
+    if (!error && data){ guestOK = true; for (const r of data.reverse()) spawnSignature({ id: 'g' + r.id, strokes: r.strokes, aspect: r.aspect, at: Date.parse(r.created_at) }, false); }
+    else if (error) console.warn('방명록 테이블을 못 읽었어요 (supabase-geonilgi.sql ③)', error);
+  } catch (e){ console.warn(e); }
+  net.sendPos = (x, z, h) => ch.send({ type: 'broadcast', event: 'pos', payload: { id: ME, x: r2(x), z: r2(z), h: r2(h) } });
+  net.sendEmote = (x, z, h, emo) => ch.send({ type: 'broadcast', event: 'emote', payload: { id: ME, x: r2(x), z: r2(z), h: r2(h), emo } });
+  net.sendTrace = async tr => {
+    ch.send({ type: 'broadcast', event: 'trace', payload: tr });
+    try { await sb.from(CONFIG.TRACE_TABLE).insert({ thought_id: tr.tid, emoticon: tr.emo }); } catch (e){ console.warn(e); }
+  };
+  if (!guestOK) return;   // 방명록은 이 기기에 남김 (localGuestbook)
+  net.signStore = 'supabase';
+  net.sendSign = async sig => {
+    ch.send({ type: 'broadcast', event: 'sign', payload: sig });
+    try { await sb.from(CONFIG.GUEST_TABLE).insert({ strokes: sig.strokes, aspect: sig.aspect }); } catch (e){ console.warn(e); }
+  };
+}
+async function initRoomNet(){
+  const room = await window.claude.use('room');
+  if (room){
+    room.onPeers(ch => {
+      for (const p of ch.left) removePeer('r:' + p.peer);
+      for (const p of ch.peers){
+        if (p.isMe && p.sameTab) continue;
+        const s = p.presence || {};
+        if (typeof s.x !== 'number' || typeof s.z !== 'number') continue;
+        const key = 'r:' + p.peer, isNew = !peers.has(key);
+        upsertPeer(key, s.x, s.z, s.h);
+        const pr = peers.get(key); if (!pr) continue;
+        const ea = typeof s.emoAt === 'number' && EMO_SET.has(s.emo) ? s.emoAt : null;
+        if (isNew){ pr.emoAt = ea; if (ea && Math.abs(Date.now() - ea) < 8000) peerEmote(pr, s.emo); }
+        else if (ea && ea !== pr.emoAt){ pr.emoAt = ea; peerEmote(pr, s.emo); }
+      }
+    }, () => {});
+    net.kind = 'room';
+    net.sendPos = (x, z, h) => { room.presence({ x: r2(x), z: r2(z), h: r2(h) }).catch(() => {}); };
+    net.sendEmote = (x, z, h, emo) => { room.presence({ x: r2(x), z: r2(z), h: r2(h), emo, emoAt: Date.now() }).catch(() => {}); };
+  }
+  const db = await window.claude.use('db');
+  if (db){
+    const col = db.collection('traces');
+    const mine = new Set(); let first = true;
+    col.onSnapshot(snap => {
+      for (const ch of snap.docChanges()){
+        if (ch.type !== 'added' || mine.has(ch.doc.id)) continue;
+        const d = ch.doc.data() || {};
+        if (first) applyTrace(d.tid, d.emo, false); else remoteTrace({ tid: d.tid, emo: d.emo });
+      }
+      first = false;
+    }, () => {});
+    const gcol = db.collection('guestbook'), gmine = new Set(); let gfirst = true;
+    gcol.onSnapshot(snap => {
+      for (const ch of snap.docChanges()){
+        if (ch.type !== 'added' || gmine.has(ch.doc.id)) continue;
+        const d = ch.doc.data() || {};
+        const sig = { id: 'd' + ch.doc.id, strokes: d.strokes, aspect: d.aspect, at: d.at };
+        if (gfirst) spawnSignature(sig, false); else remoteSign(sig);
+      }
+      gfirst = false;
+    }, () => {});
+    net.signStore = 'db';
+    net.sendSign = async sig => {
+      const ref = gcol.doc(); gmine.add(ref.id);
+      try { await ref.set({ strokes: sig.strokes, aspect: sig.aspect, at: sig.at }); } catch (e){ /* 보기 권한만 있으면 저장되지 않음 */ }
+    };
+    net.sendTrace = async tr => {
+      const ref = col.doc(); mine.add(ref.id);
+      try { await ref.set({ tid: tr.tid, emo: tr.emo, code: tr.code, at: Date.now() }); } catch (e){ /* 보기 권한만 있으면 저장되지 않음 */ }
+    };
+  }
+}
+
+/* ---------- 카메라 이동 ---------- */
+let tween = null;
+function glide(toPos, toYaw, toPitch, dur = 1.6, arc = 0){
+  return new Promise(res => {
+    if (tween) tween.res();
+    tween = { fp: cam.pos.clone(), fy: cam.yaw, fpi: cam.pitch, tp: toPos.clone(), ty: cam.yaw + wrapA(toYaw - cam.yaw), tpi: toPitch,
+              t0: performance.now(), dur: (reduced ? .35 : 1) * dur * 1000, arc, res };
+  });
+}
+function lookAngles(from, to){ const d = to.clone().sub(from); return [Math.atan2(-d.x, -d.z), Math.atan2(d.y, Math.hypot(d.x, d.z))]; }
+function glideLook(toPos, look, dur, arc = 0){ const [y, p] = lookAngles(toPos, look); return glide(toPos, y, p, dur, arc); }
+function updateTween(now){
+  if (!tween) return;
+  const k = Math.min(1, (now - tween.t0) / tween.dur), e = ease(k);
+  cam.pos.lerpVectors(tween.fp, tween.tp, e); cam.pos.y += Math.sin(Math.PI * e) * tween.arc;
+  cam.yaw = tween.fy + (tween.ty - tween.fy) * e; cam.pitch = tween.fpi + (tween.tpi - tween.fpi) * e;
+  if (k >= 1){ const r = tween.res; tween = null; cam.yaw = wrapA(cam.yaw); r(); }
+}
+const savePose = () => ({ pos: cam.pos.clone(), yaw: cam.yaw, pitch: cam.pitch });
+
+/* ---------- 상태 ---------- */
+let mode = 'intro';        // intro · walk · approach · gather · overview
+let current = null;
+let gather = null;         // { kw, list, objs, lines, spiral, sel }
+let walkPose = null;
+
+function approach(p, { dur = 1.9 } = {}){
+  if (mode === 'gather') exitGather(false);
+  walkPose = null; setOverview(false);
+  closeCard();
+  mode = 'approach'; current = p;
+  const n = new THREE.Vector3(Math.sin(p.rot), 0, Math.cos(p.rot));
+  const center = new THREE.Vector3(p.pos.x, PCY, p.pos.z);
+  const to = center.clone().addScaledVector(n, 6.2); to.y = PCY - .1;
+  const look = center.clone(); look.y = PCY - 1.15;
+  const dist = to.distanceTo(cam.pos);
+  return glideLook(to, look, dur, dist > 9 ? Math.min(4, dist * .08) : 0);
+}
+function leaveApproach(){
+  if (mode !== 'approach') return;
+  closeCard(); mode = 'walk'; current = null;
+}
+function walkTo(point){
+  if (mode === 'gather') exitGather(false);
+  closeCard(); current = null; walkPose = null; setOverview(false); mode = 'walk';
+  const to = new THREE.Vector3(clamp(point.x, -WALK, WALK), EYE, clamp(point.z, -WALK, WALK));
+  const d = to.clone().sub(cam.pos); d.y = 0; const dist = d.length();
+  const yaw = dist > .5 ? Math.atan2(-d.x, -d.z) : cam.yaw;
+  return glide(to, yaw, -0.03, clamp(dist / 8, .7, 3.6));
+}
+
+function enterGather(kw){
+  const list = [...parcels.values()].filter(p => p.group && p.kws.some(k => k.name === kw));
+  if (!list.length) return Promise.resolve();
+  if (mode === 'gather') clearGather();
+  else if (mode !== 'overview' && !walkPose) walkPose = savePose();
+  closeCard(); current = null; setOverview(false);
+  mode = 'gather';
+  const cx = avg(list.map(p => p.pos.x)), cz = avg(list.map(p => p.pos.z));
+  const R = Math.max(4, ...list.map(p => Math.hypot(p.pos.x - cx, p.pos.z - cz)));
+  const node = new THREE.Vector3(cx, 10 + R * .12, cz);
+  const objs = new THREE.Group(); scene.add(objs);
+  const linesMap = new Map();
+  const dotGeo = new THREE.BoxGeometry(.11, .11, .11), dotMat = new THREE.MeshBasicMaterial({ color: 0x959595 });
+  for (const p of list){
+    const a = kwWorld(p, kw); if (!a) continue;
+    const g = new THREE.BufferGeometry().setFromPoints([a, node]);
+    const m = new THREE.LineBasicMaterial({ color: 0xBDBDBD });
+    objs.add(new THREE.Line(g, m)); linesMap.set(p, m);
+    for (const f of [.3, .62]){ const d = new THREE.Mesh(dotGeo, dotMat); d.position.lerpVectors(a, node, f); objs.add(d); }
+  }
+  const total = list.reduce((s, p) => s + p.kws.find(k => k.name === kw).count, 0);
+  const spiral = new THREE.Group(); spiral.position.copy(node).add(new THREE.Vector3(0, 1.5, 0));
+  const sGeo = new THREE.BoxGeometry(.16, .16, .04);
+  const nSq = clamp(total * 3, 14, 36);
+  for (let i = 0; i < nSq; i++){
+    const a = i * .55, r = .12 + i * .028;
+    const b = new THREE.Mesh(sGeo, dotMat); b.position.set(Math.cos(a) * r, Math.sin(a) * r, 0); b.rotation.z = a; spiral.add(b);
+  }
+  objs.add(spiral);
+  const L = canvasTex(1024, 160);
+  L.ctx.font = `500 60px ${UI}`; L.ctx.fillStyle = C.text; L.ctx.textAlign = 'center'; L.ctx.textBaseline = 'middle';
+  L.ctx.fillText(`${kw} · 생각 ${total}개`, 512, 80); L.t.needsUpdate = true;
+  const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: L.t, transparent: true, depthWrite: false }));
+  label.scale.set(6.4, 1, 1); label.position.copy(node).add(new THREE.Vector3(0, -.75, 0)); objs.add(label);
+  gather = { kw, list, objs, lines: linesMap, spiral, sel: null };
+  for (const p of parcels.values()) if (p.group) setOpacity(p, list.includes(p) ? 1 : .16);
+  list.forEach(p => redraw(p));
+  updateChips();
+  const to = new THREE.Vector3(cx, 5.5 + R * .25, cz + R + 14);
+  const items = list.flatMap(p => p.kws.find(k => k.name === kw).thoughts.map(t => ({ t, p })));
+  return glideLook(to, new THREE.Vector3(cx, 5, cz), 2.6).then(() => {
+    if (gather && gather.kw === kw) return showCard(items, 0, 'gather');
+  });
+}
+function clearGather(){
+  if (!gather) return;
+  scene.remove(gather.objs);
+  gather.objs.traverse(o => { if (o.isSprite) o.material.map.dispose(); });
+  const list = gather.list; gather = null;
+  for (const p of parcels.values()) if (p.group) setOpacity(p, 1);
+  list.forEach(p => redraw(p));
+}
+function exitGather(glideBack = true){
+  if (!gather) return;
+  clearGather(); closeCard(); mode = 'walk'; updateChips();
+  if (glideBack){ const wp = walkPose; walkPose = null; if (wp) glide(wp.pos, wp.yaw, wp.pitch, 2.2); }
+}
+function setOverview(on){
+  $('overviewBtn').textContent = on ? '다시 걷기' : '전체 땅 보기'; fitBar($('overviewBtn'));
+  $('pull').textContent = on ? 'M을 누르면 다시 걷기' : 'M을 누르면 전체보기';
+}
+function toggleOverview(on = mode !== 'overview'){
+  if (on){
+    if (mode === 'gather') exitGather(false);
+    else if (!walkPose) walkPose = savePose();
+    closeCard(); current = null; mode = 'overview'; setOverview(true);
+    return glideLook(new THREE.Vector3(0, 44, 46), new THREE.Vector3(0, 0, -3), 2.6);
+  }
+  mode = 'walk'; setOverview(false);
+  const wp = walkPose || { pos: new THREE.Vector3(0, EYE, LAND + 2), yaw: 0, pitch: -.03 }; walkPose = null;
+  return glide(wp.pos, wp.yaw, wp.pitch, 2.4);
+}
+
+/* ---------- 생각 카드 ---------- */
+const card = { items: null, idx: 0, ctx: 'parcel' };
+const cardEl = $('card');
+let typeToken = 0;
+function typeInto(el, text){
+  const my = ++typeToken;
+  el.textContent = '';
+  const span = document.createElement('span'), caret = document.createElement('span'); caret.className = 'caret';
+  el.append(span, caret);
+  const chars = [...text];
+  if (reduced){ span.textContent = text; return Promise.resolve(); }
+  return new Promise(res => {
+    let i = 0;
+    const step = () => {
+      if (my !== typeToken) return res();
+      span.textContent = chars.slice(0, ++i).join('');
+      if (i >= chars.length) return res();
+      const ch = chars[i - 1];
+      setTimeout(step, /[.,?!]/.test(ch) ? 280 : ch === ' ' ? 40 : 62);
+    };
+    step();
+  });
+}
+/* 키워드를 누르면 그 키워드의 생각들이 필지 위에 펼쳐지고, 카드로 한 편씩 읽음 */
+function expand(p, kw){
+  const K = p.kws.find(k => k.name === kw); if (!K) return Promise.resolve();
+  if (card.items && card.ctx === 'parcel' && card.items[0].p !== p) closeCard();
+  p.open = kw; p.selT = null; p.hoverT = null; p.nodes = null; drawLabel(p);
+  return showCard(K.thoughts.map(t => ({ t, p })), 0, 'parcel');
+}
+function showCard(items, idx, ctx){
+  card.items = items; card.idx = idx; card.ctx = ctx; cardEl.hidden = false;
+  fitBar($('traceBtn'));
+  return renderCard();
+}
+function renderCard(){
+  const { t, p } = card.items[card.idx];
+  setPalette(false);
+  $('cardMeta').textContent = `필지 ${p.code} · ${fmtDate(t.date)} · ${quad(t)}`;
+  $('cardCount').textContent = `${card.idx + 1} / ${card.items.length}`;
+  $('cardNext').hidden = $('cardPrev').hidden = card.items.length < 2;
+  renderTally();
+  if (card.ctx === 'parcel'){ p.hi = p.open || t.keyword; p.selT = t.id; redraw(p); }
+  else if (gather){
+    const prev = gather.sel; gather.sel = p;
+    for (const [q, m] of gather.lines) m.color.set(q === p ? 0x6C6C6C : 0xBDBDBD);
+    if (prev && prev !== p) redraw(prev); redraw(p);
+  }
+  return typeInto($('cardText'), t.text);
+}
+function pageCard(d){
+  if (!card.items) return Promise.resolve();
+  card.idx = (card.idx + d + card.items.length) % card.items.length;
+  return renderCard();
+}
+function closeCard(){
+  typeToken++; setPalette(false);
+  if (card.items && card.ctx === 'parcel'){
+    const p = card.items[0].p; p.hi = null; p.open = null; p.selT = null; p.hoverT = null; p.nodes = null;
+    redraw(p); drawLabel(p);
+  }
+  card.items = null; cardEl.hidden = true;
+}
+$('cardNext').addEventListener('click', () => { activity(); pageCard(1); });
+$('cardPrev').addEventListener('click', () => { activity(); pageCard(-1); });
+$('cardClose').addEventListener('click', () => { activity(); if (mode === 'gather') exitGather(true); else closeCard(); });
+
+/* ---------- HUD ---------- */
+function topKeywords(n = 5){
+  const c = new Map();
+  for (const p of parcels.values()) for (const k of p.kws) c.set(k.name, (c.get(k.name) || 0) + k.count);
+  return [...c].sort((a, b) => b[1] - a[1]).slice(0, n).map(e => e[0]);
+}
+function updateChips(){
+  const box = $('chips'); box.textContent = '';
+  for (const kw of topKeywords()){
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = kw;
+    b.setAttribute('aria-pressed', String(!!gather && gather.kw === kw));
+    b.addEventListener('click', () => { activity(); if (stopTourIfRunning()) return; if (gather && gather.kw === kw) exitGather(true); else enterGather(kw); });
+    box.append(b);
+  }
+}
+function updateStats(){
+  let n = 0; for (const p of parcels.values()) n += p.thoughts.length;
+  $('stats').textContent = `필지 ${parcels.size} · 생각 ${n}`;
+}
+/* 알림이 한꺼번에 오면 (새 필지 + 새 생각 + 흔적) 하나씩 차례로 */
+let toastTimer, toastAt = 0;
+const toastQ = [];
+function toast(msg){
+  const wait = 2200 - (Date.now() - toastAt);
+  if (wait > 0 || toastQ.length){
+    if (toastQ.length < 4) toastQ.push(msg);
+    if (toastQ.length === 1) setTimeout(flushToast, Math.max(wait, 0));
+    return;
+  }
+  showToast(msg);
+}
+function flushToast(){ const m = toastQ.shift(); if (m == null) return; showToast(m); if (toastQ.length) setTimeout(flushToast, 2200); }
+function showToast(msg){
+  toastAt = Date.now();
+  const el = $('toast'); el.textContent = msg; el.classList.remove('out');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.add('out'), 4600);
+}
+function setupQR(){
+  const box = $('qrBox');
+  if (CONFIG.APP_URL && window.QRCode){
+    new window.QRCode(box, { text: CONFIG.APP_URL, width: 192, height: 192, colorDark: C.text, colorLight: '#ffffff', correctLevel: window.QRCode.CorrectLevel.M });
+  } else {
+    box.innerHTML = '<div class="qr-empty">QR 자리<br>APP_URL을<br>넣으면 생겨요</div>';
+  }
+}
+$('overviewBtn').addEventListener('click', () => { activity(); if (stopTourIfRunning()) return; toggleOverview(); });
+$('fullBtn').addEventListener('click', () => { activity(); toggleFull(); });
+for (const b of document.querySelectorAll('.tab[data-tab]')){
+  b.addEventListener('click', () => {
+    activity();
+    toast(`${b.dataset.tab}는 앱에서 열려요 · 오른쪽 QR로 들어와 보세요`);
+    const q = $('qrBox'); q.classList.remove('ping'); void q.offsetWidth; q.classList.add('ping');
+  });
+}
+function toggleFull(){
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen?.().catch(() => {});
+  } catch (e) {}
+}
+
+/* ---------- 입력 ---------- */
+const keys = new Set();
+const pointer = { ndc: new THREE.Vector2(), inside: false };
+let drag = null, lastInput = performance.now(), wheelVel = 0;
+const vel = new THREE.Vector3();
+const ray = new THREE.Raycaster();
+function activity(){ lastInput = performance.now(); }
+
+canvas.addEventListener('pointerdown', e => {
+  activity(); setPalette(false);
+  if (stopTourIfRunning()){ drag = { swallow: true }; return; }
+  if (mode === 'intro') return;
+  drag = { x: e.clientX, y: e.clientY, yaw: cam.yaw, pitch: cam.pitch, moved: false };
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+});
+canvas.addEventListener('pointermove', e => {
+  pointer.inside = true;
+  pointer.ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  if (!drag || drag.swallow) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) > 6){ drag.moved = true; canvas.classList.add('dragging'); }
+  if (drag.moved && mode !== 'overview' && !tween){
+    activity();
+    cam.yaw = drag.yaw + dx * .0032;
+    cam.pitch = clamp(drag.pitch + dy * .0026, -.7, .6);
+  }
+});
+canvas.addEventListener('pointerup', () => {
+  canvas.classList.remove('dragging');
+  const d = drag; drag = null;
+  if (!d || d.swallow || mode === 'intro') return;
+  if (!d.moved) handleClick();
+});
+canvas.addEventListener('pointerleave', () => { pointer.inside = false; });
+/* 마우스 휠: 시야 확대·축소 (마우스는 보기만, 이동은 키보드) */
+let fovTarget = 55;
+canvas.addEventListener('wheel', e => {
+  e.preventDefault(); activity();
+  if (stopTourIfRunning()) return;
+  fovTarget = clamp(fovTarget + e.deltaY * .03, 34, 72);
+}, { passive: false });
+
+function handleClick(){
+  ray.setFromCamera(pointer.ndc, camera);
+  const hit = ray.intersectObjects(panelMeshes, false)[0];
+  if (!hit) return;
+  const p = hit.object.userData.parcel;
+  if (mode === 'approach' && current === p){
+    if (hit.uv){
+      const h = hitAt(p, hit.uv.x * TEX, (1 - hit.uv.y) * TEX);
+      if (h && h.type === 't' && card.items){ const i = card.items.findIndex(it => it.t.id === h.key); if (i >= 0){ card.idx = i; renderCard(); } }
+      else if (h && h.type === 'kw'){ if (p.open === h.key) closeCard(); else expand(p, h.key); }
+    }
+    return;
+  }
+  approach(p);
+}
+
+/* 키보드: 방향키 · W A S D 걷기, Space 점프, V 시점, M 전체 땅, Q 표정 */
+const MOVE = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
+let view3 = false, tpK = 0, jumpY = 0, jumpV = 0;
+function jump(){ if ((mode === 'walk' || mode === 'approach') && jumpY === 0 && jumpV === 0) jumpV = 4.6; }
+function toggleView(){
+  view3 = !view3;
+  toast(view3 ? '3인칭으로 바꿨어요 · 내 상자가 보여요 · V를 누르면 다시 1인칭' : '1인칭으로 돌아왔어요');
+}
+addEventListener('keydown', e => {
+  activity();
+  if (stopTourIfRunning()){ e.preventDefault(); return; }
+  if (mode === 'intro'){ endIntro(); return; }
+  if (e.target.closest && e.target.closest('button') && (e.code === 'Enter' || e.code === 'Space')) return;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if (mode === 'gather' && card.items && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')){ if (!e.repeat) pageCard(e.code === 'ArrowRight' ? 1 : -1); return; }
+  if (e.code === 'Escape'){
+    if (guest.open){ closeGuest(); return; }
+    if (!$('palette').hidden){ setPalette(false); return; }
+    if (mode === 'approach'){ if (card.items) closeCard(); else leaveApproach(); }
+    else if (mode === 'gather') exitGather(true);
+    else if (mode === 'overview') toggleOverview(false);
+    return;
+  }
+  if (guest.open) return;
+  if (!$('palette').hidden && /^Digit[1-8]$/.test(e.code)){ pickEmo(EMOTICONS[+e.code.slice(5) - 1].e); return; }
+  if (e.code === 'KeyQ'){
+    if (!e.repeat){ if (card.items) togglePalette(openCardPalette); else if (!$('emoteDock').hidden) togglePalette(openWalkPalette); }
+    return;
+  }
+  if (e.code === 'Space'){ if (!e.repeat) jump(); return; }
+  if (e.code === 'KeyV'){ if (!e.repeat) toggleView(); return; }
+  if (e.code === 'KeyM'){ if (!e.repeat) toggleOverview(); return; }
+  if (e.code === 'KeyN' && !live){ demoArrival(); return; }
+  if (MOVE.has(e.code)) keys.add(e.code);
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+
+function landFeet(){
+  if (cam.pos.y > 2.6) return;
+  footprint(cam.pos.x, cam.pos.z, cam.yaw, 1, 0xCDCDCD, 10000);
+  footprint(cam.pos.x, cam.pos.z, cam.yaw, -1, 0xCDCDCD, 10000);
+}
+function updateWalk(dt){
+  if (mode !== 'walk' && mode !== 'approach'){ vel.set(0, 0, 0); jumpY = 0; jumpV = 0; return; }
+  let base = cam.pos.y - jumpY;
+  if (jumpY > 0 || jumpV > 0){
+    jumpV -= 13 * dt; jumpY = Math.max(0, jumpY + jumpV * dt);
+    if (jumpY === 0){ jumpV = 0; landFeet(); }
+  }
+  const f = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
+  const s = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+  const fast = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1.8 : 1;
+  const fwd = new THREE.Vector3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw));
+  const right = new THREE.Vector3(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
+  const want = fwd.multiplyScalar(f * 6 * fast).addScaledVector(right, s * 5 * fast);
+  vel.lerp(want, 1 - Math.pow(.002, dt));
+  if (mode === 'approach' && (f || s)) leaveApproach();
+  cam.pos.x += vel.x * dt; cam.pos.z += vel.z * dt;
+  if (mode === 'walk') base += (EYE - base) * (1 - Math.pow(.05, dt));
+  cam.pos.y = base + jumpY;
+  cam.pos.x = clamp(cam.pos.x, -WALK, WALK); cam.pos.z = clamp(cam.pos.z, -WALK, WALK);
+  for (const p of parcels.values()){
+    if (!p.group) continue;
+    const vx = cam.pos.x - p.pos.x, vz = cam.pos.z - p.pos.z, c = Math.cos(p.rot), sn = Math.sin(p.rot);
+    const lx = vx * c - vz * sn; let lz = vx * sn + vz * c;
+    if (Math.abs(lx) < W / 2 + .35 && Math.abs(lz) < .6){
+      lz = lz >= 0 ? .6 : -.6;
+      cam.pos.x = p.pos.x + lx * c + lz * sn; cam.pos.z = p.pos.z - lx * sn + lz * c;
+    }
+  }
+}
+
+/* 3인칭일 때 보이는 내 상자 */
+const meBox = new THREE.Mesh(PEER_GEO, boxMats(0x6C6C6C, 0xB5B5B5));
+const meShadow = new THREE.Mesh(PEER_SH_GEO, PEER_SH_MAT); meShadow.rotation.x = -Math.PI / 2;
+meBox.visible = meShadow.visible = false; scene.add(meBox, meShadow);
+function applyCamera(dt){
+  tpK += ((view3 && mode === 'walk' ? 1 : 0) - tpK) * (1 - Math.pow(.0005, dt));
+  const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
+  camera.position.set(cam.pos.x - fx * 4.4 * tpK, cam.pos.y + 1.2 * tpK, cam.pos.z - fz * 4.4 * tpK);
+  camera.rotation.set(cam.pitch - .2 * tpK, cam.yaw, 0);
+  if (Math.abs(camera.fov - fovTarget) > .01){ camera.fov += (fovTarget - camera.fov) * (1 - Math.pow(.001, dt)); camera.updateProjectionMatrix(); }
+  const show = tpK > .03 || (mode === 'overview' && built);
+  meBox.visible = meShadow.visible = show;
+  if (show){
+    const inWalk = mode === 'walk';
+    const x = inWalk ? cam.pos.x : groundPos.x, z = inWalk ? cam.pos.z : groundPos.z;
+    meBox.position.set(x, 1.35 + (inWalk ? cam.pos.y - EYE : 0), z);
+    meBox.rotation.y = inWalk ? cam.yaw : groundPos.h;
+    meShadow.position.set(x, .017, z);
+  }
+}
+
+/* 내 발자국과 내 자리 알리기 */
+const meFoot = { x: cam.pos.x, z: cam.pos.z, side: 1 };
+const meSent = { x: 1e9, z: 1e9, h: 0, at: 0 };
+function updateMe(now){
+  if (cam.pos.y < 2.6){
+    groundPos.x = cam.pos.x; groundPos.z = cam.pos.z; groundPos.h = cam.yaw;
+    const dx = cam.pos.x - meFoot.x, dz = cam.pos.z - meFoot.z;
+    if (Math.hypot(dx, dz) > .8){
+      footprint(cam.pos.x, cam.pos.z, Math.atan2(-dx, -dz), meFoot.side, 0xCDCDCD, 10000);
+      meFoot.side *= -1; meFoot.x = cam.pos.x; meFoot.z = cam.pos.z;
+    }
+  } else { meFoot.x = cam.pos.x; meFoot.z = cam.pos.z; }
+  if (net.kind === 'local' || mode === 'intro' || now - meSent.at < 220) return;
+  const g = groundPos;
+  const moved = Math.hypot(g.x - meSent.x, g.z - meSent.z) > .05 || Math.abs(wrapA(g.h - meSent.h)) > .08;
+  if (moved || now - meSent.at > 5000){
+    meSent.x = g.x; meSent.z = g.z; meSent.h = g.h; meSent.at = now;
+    net.sendPos(g.x, g.z, g.h);
+  }
+}
+
+/* ---------- 마우스 올림 ---------- */
+let hoverP = null;
+function updateHover(){
+  let p = null, h = null;
+  if (pointer.inside && !(drag && drag.moved) && !tween && mode !== 'intro'){
+    ray.setFromCamera(pointer.ndc, camera);
+    const hit = ray.intersectObjects(panelMeshes, false)[0];
+    if (hit){
+      p = hit.object.userData.parcel;
+      if (mode === 'approach' && current === p && hit.uv) h = hitAt(p, hit.uv.x * TEX, (1 - hit.uv.y) * TEX);
+    }
+  }
+  if (hoverP !== p){
+    if (hoverP){
+      hoverP.labelMat.opacity = .85 * (gather && !gather.list.includes(hoverP) ? .16 : 1);
+      if (hoverP.hover || hoverP.hoverT){ hoverP.hover = null; hoverP.hoverT = null; redraw(hoverP); }
+    }
+    hoverP = p;
+    if (p) p.labelMat.opacity = 1;
+  }
+  const kwH = h && h.type === 'kw' && !(p && p.open) ? h.key : null, tH = h && h.type === 't' ? h.key : null;
+  if (p && (p.hover !== kwH || p.hoverT !== tH)){ p.hover = kwH; p.hoverT = tH; redraw(p); }
+  if (!(drag && drag.moved)) canvas.style.cursor = p ? 'pointer' : (mode === 'overview' ? 'default' : '');
+}
+
+/* ---------- 혼자 거닐기 (대기 모드) ---------- */
+let touring = false, tourToken = 0, pendingArrival = null;
+const recent = [];
+function stopTourIfRunning(){
+  if (!touring) return false;
+  touring = false; tourToken++; $('tourNote').hidden = true;
+  if (tween){ tween.res(); tween = null; cam.yaw = wrapA(cam.yaw); if (mode === 'approach'){ closeCard(); mode = 'walk'; current = null; } }
+  activity();
+  return true;
+}
+function nextTourParcel(){
+  if (pendingArrival && pendingArrival.group){ const p = pendingArrival; pendingArrival = null; return p; }
+  const all = [...parcels.values()].filter(p => p.group && p.kws.length);
+  const list = all.filter(p => !recent.includes(p));
+  const p = list[Math.floor(Math.random() * list.length)] || all[0];
+  if (!p) return null;
+  recent.push(p); if (recent.length > Math.min(5, all.length - 1)) recent.shift();
+  return p;
+}
+async function runTour(){
+  const my = ++tourToken; touring = true; $('tourNote').hidden = false;
+  const alive = () => my === tourToken;
+  if (mode === 'gather') exitGather(false);
+  closeCard();
+  if (mode === 'overview'){ mode = 'walk'; setOverview(false); }
+  walkPose = null;
+  let stop = 0;
+  while (alive()){
+    if (stop % 4 === 3){
+      const kws = topKeywords(5); const kw = kws[Math.floor(Math.random() * kws.length)];
+      if (!kw){ stop++; continue; }
+      await enterGather(kw); if (!alive()) return;
+      const n = Math.min(3, card.items ? card.items.length : 0);
+      for (let i = 0; i < n; i++){
+        if (i > 0){ await pageCard(1); if (!alive()) return; }
+        await sleep(3600); if (!alive()) return;
+      }
+      exitGather(false);
+    } else {
+      const p = nextTourParcel();
+      if (!p){ await sleep(3000); if (!alive()) return; stop++; continue; }
+      await approach(p, { dur: 6 }); if (!alive()) return;
+      await sleep(900); if (!alive()) return;
+      if (!p.kws.length){ await sleep(2400); if (!alive()) return; stop++; continue; }
+      const kw = p.arrivalKw && p.kws.some(k => k.name === p.arrivalKw) ? p.arrivalKw : p.kws[0].name; p.arrivalKw = null;
+      await expand(p, kw); if (!alive()) return;
+      const n = Math.min(3, card.items ? card.items.length : 0);
+      for (let i = 0; i < n; i++){
+        if (i > 0){ await pageCard(1); if (!alive()) return; }
+        await sleep(3400); if (!alive()) return;
+      }
+      closeCard(); if (alive()){ mode = 'walk'; current = null; }
+    }
+    stop++;
+  }
+}
+
+/* ---------- 웹앱과 이어지기 ---------- */
+let extraIdx = 0;
+function demoArrival(){
+  const [code, kw, text, x, y] = EXTRA[extraIdx++ % EXTRA.length];
+  const p = parcels.get(code);
+  const prev = p ? p.thoughts.map(t => ({ id: t.id, text: t.text, date: t.date, x342: t.x342, y342: t.y342, kw: t.kwList })) : [];
+  const nt = { id: `${code}/n${extraIdx}`, text, date: new Date(), x342: x, y342: y, kw: [kw] };
+  const list = prev.concat([nt]);
+  let kws;
+  if (p && p.kws.length && STATIC_CODES.has(code)){
+    kws = p.kws.map(k => ({ name: k.name, cx: k.px / S342, cy: k.py / S342, size: k.s / 2.4, rot: k.rot * 180 / Math.PI, list: list.filter(t => t.kw.includes(k.name)) }));
+    if (!kws.some(k => k.name === kw)) kws.push(...appKwStats([nt]));
+  } else kws = appKwStats(list);
+  syncParcel(code, { list, kws }, true);
+}
+const sbOn = () => !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY);
+async function fetchLands(){
+  const base = CONFIG.SUPABASE_URL.replace(/\/$/, '');
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 10000);
+  try {
+    const res = await fetch(`${base}/rest/v1/rpc/${CONFIG.LANDS_FN}`, {
+      method: 'POST', cache: 'no-store', signal: ctl.signal,
+      headers: { apikey: CONFIG.SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ known: landStamp }),
+    });
+    if (!res.ok){ const e = new Error(`수파베이스 응답 ${res.status}`); e.status = res.status; throw e; }
+    return await res.json();
+  } finally { clearTimeout(to); }
+}
+let syncNote = '', sbReach = false;
+function setSource(){
+  const n = landsOn.size;
+  const base = live ? (n ? `웹앱과 실시간 연결 · 사용자 필지 ${n}곳` : '웹앱과 실시간 연결 · 아직 로그인한 사용자 필지 없음') : syncNote;
+  $('source').textContent = base + (net.kind === 'room' ? ' · 같은 링크를 연 사람이 상자로 보여요' : net.kind === 'local' && peers.size ? ' · 예시 상자 2개' : '');
+}
+async function loadData(){
+  loadAppPlots();
+  if (!sbOn()){ syncNote = '웹앱 기본 필지만 보는 중'; return; }
+  try { applyLands(await fetchLands(), false); live = true; sbReach = true; }
+  catch (e){
+    console.warn(e); if (e.status) sbReach = true;
+    syncNote = e.status === 404 ? '웹앱 기본 필지 · 수파베이스에 거닐기 함수를 만들면 사용자 필지가 떠요' : '웹앱 서버에 닿지 않아 기본 필지만 보는 중';
+  }
+}
+/* 웹앱에서 필지가 생기거나 생각을 쓰고·고치고·묻으면 몇 초 안에 이 땅에도 그대로 */
+function startSync(){
+  if (!sbOn()) return;
+  let wait = CONFIG.POLL_MS;
+  const tick = async () => {
+    if (document.hidden){ setTimeout(tick, wait); return; }
+    try {
+      const r = await fetchLands();
+      const first = !live; live = true; wait = CONFIG.POLL_MS;
+      applyLands(r, !first);
+      if (first){ $('demoKey').hidden = true; setSource(); }
+      else if (Array.isArray(r.lands)) setSource();
+    } catch (e){ wait = Math.min(30000, wait * 2); }
+    setTimeout(tick, wait);
+  };
+  setTimeout(tick, wait);
+}
+
+/* ---------- 인트로 ---------- */
+let introDone = false;
+function endIntro(){
+  if (introDone) return; introDone = true;
+  $('intro').classList.add('gone');
+  mode = 'walk'; activity();
+  if (!tween) glide(new THREE.Vector3(0, EYE, LAND + 2), 0, -.03, 2.2);
+  setTimeout(() => canvas.focus({ preventScroll: true }), 50);
+}
+$('intro').addEventListener('click', () => { activity(); endIntro(); });
+$('intro').addEventListener('keydown', e => { if (e.code === 'Enter' || e.code === 'Space') endIntro(); });
+
+/* ---------- 방명록: 카메라 앞에서 검지로 싸인 → 필지 공간에 떠다님 ---------- */
+const HAND_LIB = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const gEl = $('guest'), gVideo = $('gVideo'), gCanvas = $('gCanvas'), gCtx = gCanvas.getContext('2d');
+const guest = { open: false, stream: null, raf: 0, strokes: [], cur: null, cursor: null, sm: null, votes: 0, pen: false, lastT: -1, w: 0, h: 0 };
+let handLandmarker = null, handLoading = null;
+function gStatus(t){ $('gStatus').textContent = t; }
+function gGuide(t){ $('gGuide').textContent = t; }
+function layoutGuest(){
+  const ar = gVideo.videoWidth && gVideo.videoHeight ? gVideo.videoWidth / gVideo.videoHeight : 16 / 9;
+  let h = innerHeight * 2 / 3, w = h * ar;
+  if (w > innerWidth - 32){ w = innerWidth - 32; h = w / ar; }
+  gEl.style.width = w + 'px'; gEl.style.height = h + 'px';
+  sizeGuest();
+}
+gVideo.addEventListener('loadedmetadata', () => { if (guest.open) layoutGuest(); });
+function sizeGuest(){
+  const r = gEl.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  guest.w = r.width; guest.h = r.height;
+  gCanvas.width = Math.round(r.width * dpr); gCanvas.height = Math.round(r.height * dpr);
+  gCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawGuest();
+}
+function drawGuest(){
+  const c = gCtx; c.clearRect(0, 0, guest.w, guest.h);
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  for (const pass of [[12, 'rgba(255,255,255,.85)'], [5, C.text]]){
+    c.lineWidth = pass[0]; c.strokeStyle = pass[1];
+    for (const s of guest.strokes){
+      if (s.length < 2){ if (s.length === 1){ c.beginPath(); c.arc(s[0].x, s[0].y, pass[0] / 2, 0, Math.PI * 2); c.fillStyle = pass[1]; c.fill(); } continue; }
+      c.beginPath(); c.moveTo(s[0].x, s[0].y);
+      for (let i = 1; i < s.length - 1; i++){ const mx = (s[i].x + s[i + 1].x) / 2, my = (s[i].y + s[i + 1].y) / 2; c.quadraticCurveTo(s[i].x, s[i].y, mx, my); }
+      c.lineTo(s[s.length - 1].x, s[s.length - 1].y); c.stroke();
+    }
+  }
+  const k = guest.cursor;
+  if (k){
+    c.beginPath(); c.arc(k.x, k.y, 10, 0, Math.PI * 2);
+    if (k.drawing){ c.fillStyle = C.text; c.fill(); }
+    else { c.lineWidth = 3; c.strokeStyle = C.paper; c.stroke(); c.lineWidth = 1.5; c.strokeStyle = C.text; c.stroke(); }
+  }
+}
+function penTo(x, y){
+  if (!guest.cur){ guest.cur = []; guest.strokes.push(guest.cur); }
+  const l = guest.cur[guest.cur.length - 1];
+  if (!l || Math.hypot(l.x - x, l.y - y) > 1.5) guest.cur.push({ x, y });
+}
+function penUp(){ guest.cur = null; }
+async function loadHands(){
+  if (handLandmarker) return handLandmarker;
+  if (!handLoading) handLoading = (async () => {
+    const v = await import(`${HAND_LIB}/vision_bundle.mjs`);
+    const files = await v.FilesetResolver.forVisionTasks(`${HAND_LIB}/wasm`);
+    const opts = d => ({ baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 1 });
+    try { handLandmarker = await v.HandLandmarker.createFromOptions(files, opts('GPU')); }
+    catch (e){ handLandmarker = await v.HandLandmarker.createFromOptions(files, opts('CPU')); }
+    return handLandmarker;
+  })();
+  return handLoading;
+}
+/* 영상(object-fit: cover, 좌우 반전) 위의 좌표로 바꿈 */
+function vidToCanvas(u, v){
+  const vw = gVideo.videoWidth || 1280, vh = gVideo.videoHeight || 720;
+  const s = Math.max(guest.w / vw, guest.h / vh), dw = vw * s, dh = vh * s;
+  return { x: (guest.w - dw) / 2 + (1 - u) * dw, y: (guest.h - dh) / 2 + v * dh };
+}
+function onHand(lm){
+  activity();
+  const p = vidToCanvas(lm[8].x, lm[8].y);
+  guest.sm = guest.sm ? { x: guest.sm.x + (p.x - guest.sm.x) * .5, y: guest.sm.y + (p.y - guest.sm.y) * .5 } : p;
+  const up = (tip, pip) => lm[tip].y < lm[pip].y - .015;
+  const want = up(8, 6) && !up(12, 10) && !up(16, 14);   // 검지만 폈을 때 그림
+  guest.votes = want === guest.pen ? 0 : guest.votes + 1;
+  if (guest.votes >= 2){ guest.pen = want; guest.votes = 0; if (!want) penUp(); }
+  if (guest.pen) penTo(guest.sm.x, guest.sm.y);
+  guest.cursor = { x: guest.sm.x, y: guest.sm.y, drawing: guest.pen };
+}
+function handLoop(){
+  if (!guest.open || !handLandmarker || !guest.stream) return;
+  if (gVideo.readyState >= 2 && gVideo.currentTime !== guest.lastT){
+    guest.lastT = gVideo.currentTime;
+    try {
+      const res = handLandmarker.detectForVideo(gVideo, performance.now());
+      const lm = res && res.landmarks && res.landmarks[0];
+      if (lm) onHand(lm); else { guest.cursor = null; guest.sm = null; if (guest.pen){ guest.pen = false; penUp(); } }
+      drawGuest();
+    } catch (e){ console.warn(e); }
+  }
+  guest.raf = requestAnimationFrame(handLoop);
+}
+async function openGuest(){
+  if (guest.open) return;
+  guest.open = true; setPalette(false); activity();
+  gEl.hidden = false; layoutGuest(); fitBar($('gClear')); fitBar($('gSave'));
+  guest.strokes = []; guest.cur = null; guest.cursor = null; drawGuest();
+  gStatus('카메라를 켜는 중'); gGuide('마우스로 그려도 돼요');
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('no camera api');
+    guest.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    if (!guest.open){ stopCamera(); return; }
+    gVideo.srcObject = guest.stream; await gVideo.play().catch(() => {});
+    gStatus('손 인식을 준비하는 중');
+    await loadHands();
+    if (!guest.open) return;
+    gStatus('검지로 싸인해 주세요');
+    gGuide('검지 하나만 펴면 그려지고, 손을 펴면 멈춰요');
+    handLoop();
+  } catch (e){
+    console.warn('방명록 카메라', e);
+    if (!guest.stream){ gStatus('카메라를 쓸 수 없어서 마우스로 그려요'); gGuide('화면을 누른 채 움직여서 싸인해 주세요'); }
+    else { gStatus('손 인식을 불러오지 못해서 마우스로 그려요'); gGuide('화면을 누른 채 움직여서 싸인해 주세요'); }
+  }
+}
+function stopCamera(){
+  cancelAnimationFrame(guest.raf);
+  if (guest.stream){ guest.stream.getTracks().forEach(t => t.stop()); guest.stream = null; }
+  gVideo.srcObject = null;
+}
+function closeGuest(){
+  if (!guest.open) return;
+  guest.open = false; stopCamera(); gEl.hidden = true; guest.cursor = null; guest.pen = false;
+}
+/* 마우스로도 그릴 수 있게 */
+gCanvas.addEventListener('pointerdown', e => {
+  activity(); const r = gCanvas.getBoundingClientRect();
+  try { gCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+  guest.mouse = true; penUp(); penTo(e.clientX - r.left, e.clientY - r.top); drawGuest();
+});
+gCanvas.addEventListener('pointermove', e => {
+  if (!guest.mouse) return; activity();
+  const r = gCanvas.getBoundingClientRect(); penTo(e.clientX - r.left, e.clientY - r.top); drawGuest();
+});
+const mouseUp = () => { if (guest.mouse){ guest.mouse = false; penUp(); } };
+gCanvas.addEventListener('pointerup', mouseUp); gCanvas.addEventListener('pointercancel', mouseUp);
+$('gClear').addEventListener('click', () => { activity(); guest.strokes = []; penUp(); drawGuest(); });
+$('gClose').addEventListener('click', () => { activity(); closeGuest(); });
+$('guestBtn').addEventListener('click', () => { activity(); openGuest(); });
+addEventListener('resize', () => { if (guest.open) layoutGuest(); });
+$('gSave').addEventListener('click', () => {
+  activity();
+  const sig = packSignature(guest.strokes);
+  if (!sig){ gStatus('아직 그린 싸인이 없어요'); return; }
+  closeGuest();
+  spawnSignature(sig, true);
+  net.sendSign(sig);
+  toast('방명록에 싸인이 남았어요 · 땅 위를 천천히 떠다녀요');
+});
+
+/* 싸인을 0~1 좌표로 줄여서 저장·공유 */
+function packSignature(strokes){
+  const ss = strokes.filter(s => s.length > 0);
+  if (!ss.length) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of ss) for (const p of s){ x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+  const w = Math.max(x1 - x0, 20), h = Math.max(y1 - y0, 20), m = Math.max(w, h);
+  const out = [];
+  for (const s of ss){
+    const q = []; let last = null;
+    for (const p of s){
+      const x = +((p.x - x0) / m).toFixed(3), y = +((p.y - y0) / m).toFixed(3);
+      if (!last || Math.hypot(x - last[0], y - last[1]) > .006){ q.push([x, y]); last = [x, y]; }
+    }
+    if (q.length) out.push(q);
+  }
+  return { id: ME + '-' + Date.now(), strokes: out, aspect: +(w / h).toFixed(3), at: Date.now() };
+}
+function validSignature(d){
+  if (!d || !Array.isArray(d.strokes) || d.strokes.length > 200) return null;
+  let n = 0; const strokes = [];
+  for (const s of d.strokes){
+    if (!Array.isArray(s)) return null;
+    const q = [];
+    for (const p of s){
+      if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return null;
+      q.push([clamp(p[0], 0, 1.01), clamp(p[1], 0, 1.01)]); if (++n > 4000) return null;
+    }
+    if (q.length) strokes.push(q);
+  }
+  if (!strokes.length) return null;
+  return { id: String(d.id || Math.random()), strokes, aspect: clamp(Number(d.aspect) || 1, .2, 6), at: Number(d.at) || Date.now() };
+}
+const sigs = [];
+/* 수파베이스·아티팩트 저장소가 없을 때: 이 브라우저에 방명록을 저장해서 다시 들어와도 남아 있게 */
+const GB_KEY = 'sayuji-guestbook-v1';
+function localGuestbook(){
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(GB_KEY) || '[]'); if (!Array.isArray(list)) list = []; } catch (e){ list = []; }
+  for (const sig of list) spawnSignature(sig, false);
+  net.signStore = 'local';
+  net.sendSign = sig => {
+    list.push(sig); while (list.length > 40) list.shift();
+    try { localStorage.setItem(GB_KEY, JSON.stringify(list)); } catch (e){ console.warn('방명록 저장 실패', e); }
+  };
+}
+function spawnSignature(raw, nearMe){
+  const sig = validSignature(raw); if (!sig) return;
+  if (sigs.some(s => s.id === sig.id)) return;
+  const W0 = 1024, H0 = Math.round(clamp(W0 / sig.aspect, 220, 1024)), pad = 70;
+  const { ctx, t } = canvasTex(W0, H0 + 60);
+  const span = Math.min((W0 - pad * 2), (H0 - pad * 2) * sig.aspect);
+  const ox = (W0 - span) / 2, oy = (H0 - span / sig.aspect) / 2;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = C.text; ctx.lineWidth = 12;
+  for (const s of sig.strokes){
+    ctx.beginPath();
+    s.forEach((p, i) => { const x = ox + p[0] * span, y = oy + p[1] * span; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    if (s.length === 1){ ctx.lineTo(ox + s[0][0] * span + .1, oy + s[0][1] * span); }
+    ctx.stroke();
+  }
+  ctx.font = `500 30px ${UI}`; ctx.fillStyle = C.gray; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText(`방명록 · ${fmtDate(new Date(sig.at))}`, W0 - pad, H0 + 20);
+  t.needsUpdate = true;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
+  const wU = 2.8; sprite.scale.set(wU, wU * (H0 + 60) / W0, 1);
+  let x, y, z;
+  if (nearMe){ x = cam.pos.x - Math.sin(cam.yaw) * 6; z = cam.pos.z - Math.cos(cam.yaw) * 6; y = 2.8; }
+  else { x = (hf(sig.id, 'sx') - .5) * (LAND * 1.6); z = (hf(sig.id, 'sz') - .5) * (LAND * 1.6); y = 3 + hf(sig.id, 'sy') * 2; }
+  sprite.position.set(x, y, z); scene.add(sprite);
+  const s = { id: sig.id, sprite, x, y, z, tx: x, tz: z, phase: hf(sig.id, 'ph') * 6, wait: nearMe ? 3500 : 0 };
+  sigs.push(s);
+  if (nearMe){ sprite.material.opacity = 0; anim(900, k => { sprite.material.opacity = k; }); }
+  if (sigs.length > 40){ const o = sigs.shift(); scene.remove(o.sprite); o.sprite.material.map.dispose(); o.sprite.material.dispose(); }
+}
+function updateSignatures(dt, now){
+  for (const s of sigs){
+    if (s.wait > 0){ s.wait -= dt * 1000; }
+    else {
+      const dx = s.tx - s.x, dz = s.tz - s.z, d = Math.hypot(dx, dz);
+      if (d < .3){ s.tx = (Math.random() - .5) * (LAND * 1.6); s.tz = (Math.random() - .5) * (LAND * 1.6); }
+      else { const sp = Math.min(d, .55 * dt); s.x += dx / d * sp; s.z += dz / d * sp; }
+      if (s.y < 3.2) s.y += dt * .25;
+    }
+    s.sprite.position.set(s.x, s.y + Math.sin(now / 1400 + s.phase) * .18, s.z);
+  }
+}
+function remoteSign(d){
+  const before = sigs.length;
+  spawnSignature(d, false);
+  if (sigs.length > before) toast('누군가 방명록에 싸인을 남겼어요');
+}
+
+/* ---------- 루프 ---------- */
+let last = performance.now(), hudMode = null, dockShown = false;
+function frame(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  updateTween(now);
+  if (!tween) updateWalk(dt);
+  applyCamera(dt);
+  const lift = Math.max(0, cam.pos.y - EYE);
+  scene.fog.near = 16 + lift * .8; scene.fog.far = 86 + lift * 1.7;
+  for (let i = anims.length - 1; i >= 0; i--){
+    const a = anims[i], k = Math.min(1, (now - a.t0) / a.dur); a.fn(k);
+    if (k >= 1){ anims.splice(i, 1); a.done?.(); }
+  }
+  if (gather && !reduced) gather.spiral.rotation.z -= dt * .4;
+  if (mode !== hudMode){
+    hudMode = mode; $('pull').hidden = !(mode === 'walk' || mode === 'overview');
+    $('dockText').textContent = mode === 'approach' ? '키워드를 누르면 생각이 펼쳐져요' : '표정으로 흔적을 남기거나 방명록에 싸인해요';
+  }
+  const wantDock = (mode === 'walk' || mode === 'overview' || mode === 'approach') && !card.items && !touring;
+  if (wantDock !== dockShown){
+    dockShown = wantDock; $('emoteDock').hidden = !wantDock;
+    if (wantDock){ fitBar($('emoteBtn')); fitBar($('guestBtn')); } else if (palFrom === $('emoteBtn')) setPalette(false);
+  }
+  updateDemo(dt); updatePeers(dt, now); updateMe(now); updateFeet(now); updateImprints(now); updateSignatures(dt, now);
+  updateHover();
+  if (!touring && !guest.open && mode !== 'intro' && now - lastInput > CONFIG.IDLE_MS) runTour();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+});
+
+/* ---------- 시작 ---------- */
+(async function init(){
+  const fontWait = Promise.all([
+    document.fonts.load(`400 30px "Noto Sans KR"`), document.fonts.load(`500 30px "Noto Sans KR"`),
+    document.fonts.load(`700 30px "Noto Sans KR"`), document.fonts.load(`600 30px "Plus Jakarta Sans"`),
+  ]).catch(() => {});
+  requestAnimationFrame(frame);
+  glide(new THREE.Vector3(0, EYE, LAND + 2), 0, -.03, 6);
+  updatePeople();
+  await Promise.race([fontWait, sleep(3500)]);
+  groundWord('물음', 0, -LAND - 4); groundWord('단정', 0, LAND + 6);
+  groundWord('겪은 것', -LAND - 7, 0); groundWord('개념', LAND + 7, 0);
+  await loadData();
+  const list = [...parcels.values()];
+  computeNorm();
+  list.forEach(p => placeParcel(p, false)); relax(list);
+  list.forEach(buildParcel); built = true;
+  updateChips(); updateStats(); setupQR();
+  $('demoKey').hidden = live;
+  startSync(); setSource();
+  initNet().catch(() => {}).then(() => {
+    if (!net.signStore) localGuestbook();
+    if (net.kind === 'local') spawnDemo();
+    setSource();
+  });
+  window.sayuji = { approach: code => parcels.get(code) && approach(parcels.get(code)), gather: kw => enterGather(kw), overview: () => toggleOverview(),
+                    arrive: demoArrival, tour: runTour, trace: emo => leaveTrace(emo), palette: () => openCardPalette(),
+                    expand: (code, kw) => expand(parcels.get(code), kw), emote: e => emote(e), walkPalette: () => openWalkPalette() };
+  await sleep(reduced ? 600 : 3300);
+  endIntro();
+})();
+</script>
+</body>
+</html>
