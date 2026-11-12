@@ -2019,7 +2019,7 @@ async function loadHands(){
   if (!handLoading) handLoading = (async () => {
     const v = await import(`${HAND_LIB}/vision_bundle.mjs`);
     const files = await v.FilesetResolver.forVisionTasks(`${HAND_LIB}/wasm`);
-    const opts = d => ({ baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 1 });
+    const opts = d => ({ baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 1, minHandDetectionConfidence: .5, minHandPresenceConfidence: .3, minTrackingConfidence: .3 });
     try { handLandmarker = await v.HandLandmarker.createFromOptions(files, opts('GPU')); }
     catch (e){ handLandmarker = await v.HandLandmarker.createFromOptions(files, opts('CPU')); }
     return handLandmarker;
@@ -2035,7 +2035,7 @@ function vidToCanvas(u, v){
 /* 손가락이 펴졌는지: 손목→손끝 거리 ÷ 손목→손가락 뿌리 거리 (손을 기울여도 비슷하게 나옴) */
 function fingerRatio(lm, tip, mcp){
   const ar = (gVideo.videoWidth || 16) / (gVideo.videoHeight || 9);
-  const d = (a, b) => Math.hypot((a.x - b.x) * ar, a.y - b.y, (a.z - b.z) * ar * .6);
+  const d = (a, b) => Math.hypot((a.x - b.x) * ar, a.y - b.y, (a.z - b.z) * ar);
   return d(lm[tip], lm[0]) / Math.max(1e-4, d(lm[mcp], lm[0]));
 }
 function onHand(lm){
@@ -2043,7 +2043,7 @@ function onHand(lm){
   const p = vidToCanvas(lm[8].x, lm[8].y);
   guest.sm = guest.sm ? { x: guest.sm.x + (p.x - guest.sm.x) * .5, y: guest.sm.y + (p.y - guest.sm.y) * .5 } : p;
   const r = [fingerRatio(lm, 8, 5), fingerRatio(lm, 12, 9), fingerRatio(lm, 16, 13), fingerRatio(lm, 20, 17)];
-  const fist = r[0] < 1.3 && r.filter(v => v < 1.35).length >= 3;   // 주먹: 검지까지 손가락 셋 이상 접힘
+  const fist = r[0] < 1.25 && r[1] < 1.35 && (r[2] < 1.35 || r[3] < 1.35);   // 주먹: 검지·중지에 하나 더 접힘
   const want = guest.pen ? !fist : r[0] > 1.55;                      // 쓰는 중엔 주먹이면 멈춤, 멈춘 동안엔 검지가 펴지면 다시 씀
   if (want !== guest.pen){
     if (++guest.votes >= 3){
@@ -2061,7 +2061,12 @@ function handLoop(){
     try {
       const res = handLandmarker.detectForVideo(gVideo, performance.now());
       const lm = res && res.landmarks && res.landmarks[0];
-      if (lm) onHand(lm); else { guest.cursor = null; guest.sm = null; if (guest.pen){ guest.pen = false; penUp(); } }
+      if (lm){ guest.lostAt = 0; onHand(lm); }
+      else {   // 인식이 한두 프레임 빠져도 획은 이어짐 — 0.35초 넘게 손이 안 보일 때만 끊음
+        guest.cursor = null;
+        if (!guest.lostAt) guest.lostAt = performance.now();
+        else if (performance.now() - guest.lostAt > 350){ guest.sm = null; guest.votes = 0; if (guest.pen){ guest.pen = false; penUp(); } }
+      }
       drawGuest();
     } catch (e){ console.warn(e); }
   }
@@ -2361,6 +2366,7 @@ function remoteSign(d){
 
 /* ---------- 루프 ---------- */
 let last = performance.now(), hudMode = null, dockShown = false;
+let lastRender = 0;
 function frame(now){
   const dt = Math.min(.05, (now - last) / 1000); last = now;
   updateTween(now);
@@ -2385,7 +2391,7 @@ function frame(now){
   updateDemo(dt); updatePeers(dt, now); updateMe(now); updateFeet(now); updateImprints(now); updateSignatures(dt, now);
   updateHover();
   if (!touring && !guest.open && mode !== 'intro' && now - lastInput > CONFIG.IDLE_MS) runTour();
-  renderer.render(scene, camera);
+  if (!guest.open || now - lastRender > 100){ lastRender = now; renderer.render(scene, camera); }   // 방명록 중엔 뒤 공간을 초당 10번만
   requestAnimationFrame(frame);
 }
 addEventListener('resize', () => {
