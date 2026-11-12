@@ -2239,7 +2239,7 @@ function validSignature(d){
 }
 const sigs = [];
 /* 수파베이스·아티팩트 저장소가 없을 때: 이 브라우저에 방명록을 저장해서 다시 들어와도 남아 있게 */
-const GB_KEY = 'sayuji-guestbook-v1';
+const GB_KEY = 'sayuji-guestbook-v2';
 function localGuestbook(){
   let list = [];
   try { list = JSON.parse(localStorage.getItem(GB_KEY) || '[]'); if (!Array.isArray(list)) list = []; } catch (e){ list = []; }
@@ -2262,6 +2262,11 @@ const photoDB = (() => {
   const tx = async (m, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('photos', m); const q = fn(t.objectStore('photos')); t.oncomplete = () => res(q.result); t.onerror = () => rej(t.error); }); };
   return { put: (k, v) => tx('readwrite', s => s.put(v, k)), get: k => tx('readonly', s => s.get(k)), del: k => tx('readwrite', s => s.delete(k)) };
 })();
+/* 11/12 정리: 서버 연결 전에 브라우저에만 쌓였던 예전 방명록은 지움 */
+try {
+  const old = JSON.parse(localStorage.getItem('sayuji-guestbook-v1') || 'null');
+  if (old){ for (const o of Array.isArray(old) ? old : []) if (o && o.local) photoDB.del(o.id).catch(() => {}); localStorage.removeItem('sayuji-guestbook-v1'); }
+} catch (e){}
 function spawnSignature(raw, nearMe, photoBlob = null){
   const sig = validSignature(raw); if (!sig) return;
   if (sigs.some(s => s.id === sig.id)) return;
