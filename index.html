@@ -1284,7 +1284,7 @@ async function initSupabaseNet(){
   net.kind = 'supabase';
   let guestOK = false, photoCol = true;
   try {
-    const q = cols => `/rest/v1/${CONFIG.GUEST_TABLE}?select=${cols}&order=created_at.desc&limit=40`;
+    const q = cols => `/rest/v1/${CONFIG.GUEST_TABLE}?select=${cols}&order=created_at.desc&limit=${SIG_MAX}`;
     let data;
     try { data = await (await sbRest(q('id,strokes,aspect,photo,created_at'))).json(); }
     catch (e){ if (e.status !== 400) throw e; photoCol = false; data = await (await sbRest(q('id,strokes,aspect,created_at'))).json(); }
@@ -2240,6 +2240,7 @@ function validSignature(d){
 const sigs = [];
 /* 수파베이스·아티팩트 저장소가 없을 때: 이 브라우저에 방명록을 저장해서 다시 들어와도 남아 있게 */
 const GB_KEY = 'sayuji-guestbook-v2';
+const SIG_MAX = 100;   // 땅 위에 떠다니는 방명록 수 (가장 최근 100개)
 function localGuestbook(){
   let list = [];
   try { list = JSON.parse(localStorage.getItem(GB_KEY) || '[]'); if (!Array.isArray(list)) list = []; } catch (e){ list = []; }
@@ -2247,7 +2248,7 @@ function localGuestbook(){
   net.signStore = 'local';
   net.sendSign = (sig, photo) => {
     list.push(photo ? { ...sig, local: 1 } : sig);
-    while (list.length > 40){ const o = list.shift(); if (o.local) photoDB.del(o.id).catch(() => {}); }
+    while (list.length > SIG_MAX){ const o = list.shift(); if (o.local) photoDB.del(o.id).catch(() => {}); }
     try { localStorage.setItem(GB_KEY, JSON.stringify(list)); } catch (e){ console.warn('방명록 저장 실패', e); }
     if (photo) photoDB.put(sig.id, photo).catch(e => console.warn('사진 저장 실패', e));
   };
@@ -2270,22 +2271,22 @@ try {
 function spawnSignature(raw, nearMe, photoBlob = null){
   const sig = validSignature(raw); if (!sig) return;
   if (sigs.some(s => s.id === sig.id)) return;
-  const W0 = 1024, H0 = Math.round(clamp(W0 / sig.aspect, 220, 1024)), pad = 70;
-  const { ctx, t } = canvasTex(W0, H0 + 60);
+  const W0 = 640, H0 = Math.round(clamp(W0 / sig.aspect, 140, 640)), pad = 44;   // 방명록이 많이 쌓여도 가볍게 (한 장 640px)
+  const { ctx, t } = canvasTex(W0, H0 + 38);
   const span = Math.min((W0 - pad * 2), (H0 - pad * 2) * sig.aspect);
   const ox = (W0 - span) / 2, oy = (H0 - span / sig.aspect) / 2;
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = C.text; ctx.lineWidth = 12;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = C.text; ctx.lineWidth = 7.5;
   for (const s of sig.strokes){
     ctx.beginPath();
     s.forEach((p, i) => { const x = ox + p[0] * span, y = oy + p[1] * span; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
     if (s.length === 1){ ctx.lineTo(ox + s[0][0] * span + .1, oy + s[0][1] * span); }
     ctx.stroke();
   }
-  ctx.font = `500 30px ${UI}`; ctx.fillStyle = C.gray; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  ctx.fillText(`방명록 · ${fmtDate(new Date(sig.at))}`, W0 - pad, H0 + 20);
+  ctx.font = `500 19px ${UI}`; ctx.fillStyle = C.gray; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText(`방명록 · ${fmtDate(new Date(sig.at))}`, W0 - pad, H0 + 12.5);
   t.needsUpdate = true;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
-  const wU = 2.8; sprite.scale.set(wU, wU * (H0 + 60) / W0, 1);
+  const wU = 2.8; sprite.scale.set(wU, wU * (H0 + 38) / W0, 1);
   let x, y, z;
   if (nearMe){ x = cam.pos.x - Math.sin(cam.yaw) * 6; z = cam.pos.z - Math.cos(cam.yaw) * 6; y = 2.8; }
   else { x = (hf(sig.id, 'sx') - .5) * (LAND * 1.6); z = (hf(sig.id, 'sz') - .5) * (LAND * 1.6); y = 3 + hf(sig.id, 'sy') * 2; }
@@ -2294,7 +2295,7 @@ function spawnSignature(raw, nearMe, photoBlob = null){
               sig, at: sig.at, photo: sig.photo, photoBlob, photoUrl: sig.photoData, local: !!raw.local };
   sigs.push(s);
   if (nearMe){ sprite.material.opacity = 0; anim(900, k => { sprite.material.opacity = k; }); }
-  if (sigs.length > 40){ const o = sigs.shift(); scene.remove(o.sprite); o.sprite.material.map.dispose(); o.sprite.material.dispose(); if (o.photoUrl && o.photoUrl.startsWith('blob:')) URL.revokeObjectURL(o.photoUrl); }
+  if (sigs.length > SIG_MAX){ const o = sigs.shift(); scene.remove(o.sprite); o.sprite.material.map.dispose(); o.sprite.material.dispose(); if (o.photoUrl && o.photoUrl.startsWith('blob:')) URL.revokeObjectURL(o.photoUrl); }
 }
 
 /* ---------- 떠다니는 방명록을 누르면: 그때 찍은 사진 ---------- */
